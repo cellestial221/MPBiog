@@ -3,4 +3,4 @@ python-docx
 requests
 anthropic
 PyPDF2
-wikipediaapi
+wikipedia-api
