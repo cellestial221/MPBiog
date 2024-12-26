@@ -117,45 +117,60 @@ async def get_verified_positions(mp_id):
             'api_response': None
         }
 
-        # Add debugging for API call
         bio_url = f"https://members-api.parliament.uk/api/Members/{mp_id}/Biography"
-        print(f"Making API request to: {bio_url}")  # Debug print
-        
         bio_response = requests.get(bio_url)
-        print(f"Response status code: {bio_response.status_code}")  # Debug print
         
         if bio_response.status_code == 200:
-            try:
-                bio_data = bio_response.json()
-                print(f"Raw API response: {bio_data}")  # Debug print
-                
-                if 'value' in bio_data:
-                    bio_data = bio_data['value']
-                    verified_data['api_response'] = bio_data
-                    
-                    # Debug prints for data structure
-                    print(f"Committee memberships found: {bool(bio_data.get('committeeMemberships'))}")
-                    print(f"Government posts found: {bool(bio_data.get('governmentPosts'))}")
-                    
-                    # Process committee memberships
-                    if bio_data.get('committeeMemberships'):
-                        for committee in bio_data['committeeMemberships']:
-                            print(f"Processing committee: {committee}")  # Debug print
-                            # ... rest of committee processing ...
-
-            except Exception as e:
-                print(f"Error parsing JSON response: {str(e)}")
-                print(f"Response content: {bio_response.text}")
-                return verified_data
-                
-        else:
-            print(f"API request failed with status code: {bio_response.status_code}")
-            print(f"Response content: {bio_response.text}")
+            bio_data = bio_response.json()['value']
+            verified_data['api_response'] = bio_data
             
+            # Process committee memberships - they're under 'committeeMemberships' directly
+            if bio_data.get('committeeMemberships'):
+                for committee in bio_data['committeeMemberships']:
+                    committee_info = {
+                        'name': committee.get('name'),
+                        'start_date': committee.get('startDate', '')[:10] if committee.get('startDate') else None,
+                        'end_date': committee.get('endDate', '')[:10] if committee.get('endDate') else 'present'
+                    }
+                    
+                    # Check if current or historical based on endDate
+                    if not committee.get('endDate'):
+                        verified_data['current_committees'].append(committee_info)
+                    else:
+                        verified_data['historical_committees'].append(committee_info)
+
+            # Process government posts
+            if bio_data.get('governmentPosts'):
+                for post in bio_data['governmentPosts']:
+                    post_info = {
+                        'name': post.get('name'),
+                        'start_date': post.get('startDate', '')[:10] if post.get('startDate') else None,
+                        'end_date': post.get('endDate', '')[:10] if post.get('endDate') else 'present'
+                    }
+                    
+                    if not post.get('endDate'):
+                        verified_data['current_roles'].append(post_info)
+                    else:
+                        verified_data['historical_roles'].append(post_info)
+
+            # Process opposition posts
+            if bio_data.get('oppositionPosts'):
+                for post in bio_data['oppositionPosts']:
+                    post_info = {
+                        'name': post.get('name'),
+                        'start_date': post.get('startDate', '')[:10] if post.get('startDate') else None,
+                        'end_date': post.get('endDate', '')[:10] if post.get('endDate') else 'present'
+                    }
+                    
+                    if not post.get('endDate'):
+                        verified_data['current_roles'].append(post_info)
+                    else:
+                        verified_data['historical_roles'].append(post_info)
+
         return verified_data
 
     except Exception as e:
-        print(f"Error in get_verified_positions: {str(e)}")
+        print(f"Error fetching verified positions: {str(e)}")
         return verified_data
     
         
