@@ -152,6 +152,14 @@ def main():
                 has_wiki_data = wiki_data is not None
                 wiki_url = get_wiki_url(mp_name) if has_wiki_data else None
 
+                with st.expander("Debug Information"):
+                    st.subheader("Wikipedia Data")
+                    if wiki_data:
+                        st.text("Wikipedia content found:")
+                        st.text(wiki_data)
+                    else:
+                        st.text("No Wikipedia content found")
+                
                 # Combine all available information
                 if not input_content and has_api_data:
                     # If no PDF, use formatted MP data as input content
