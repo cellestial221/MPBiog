@@ -517,7 +517,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
             verified_positions_text += "\nNo verified parliamentary information available. Do not include unverified committee memberships, roles, or parliamentary activities.\n"
             
     else:
-        verified_positions_text += "\nNo verified position data available. Do not include any committee memberships, government/opposition roles, or parliamentary activities in the biography.\n""
+        verified_positions_text += "\nNo verified position data available. Do not include any committee memberships, government/opposition roles, or parliamentary activities in the biography.\n"
         
     prompt = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
 
