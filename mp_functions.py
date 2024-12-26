@@ -109,77 +109,55 @@ def get_mp_id(mp_name):
 async def get_verified_positions(mp_id):
     """Get verified committee memberships and roles from Parliament API"""
     try:
-        # Add delay to handle API responsiveness
-        await asyncio.sleep(2)
-        
         verified_data = {
             'current_committees': [],
             'historical_committees': [],
             'current_roles': [],
             'historical_roles': [],
-            'api_response': None  # Store raw API response for debugging
+            'api_response': None
         }
 
-        if not mp_id:
-            return verified_data
-
-        # Get biography data which includes committee memberships
+        # Add debugging for API call
         bio_url = f"https://members-api.parliament.uk/api/Members/{mp_id}/Biography"
+        print(f"Making API request to: {bio_url}")  # Debug print
+        
         bio_response = requests.get(bio_url)
+        print(f"Response status code: {bio_response.status_code}")  # Debug print
         
         if bio_response.status_code == 200:
-            bio_data = bio_response.json()['value']
-            verified_data['api_response'] = bio_data  # Store full response
-            
-            # Process committee memberships
-            if bio_data.get('committeeMemberships'):
-                for committee in bio_data['committeeMemberships']:
-                    if not committee.get('name'):
-                        continue
-                        
-                    committee_info = {
-                        'name': committee.get('name'),
-                        'start_date': committee.get('startDate', '')[:10] if committee.get('startDate') else None,
-                        'end_date': committee.get('endDate', '')[:10] if committee.get('endDate') else 'present'
-                    }
+            try:
+                bio_data = bio_response.json()
+                print(f"Raw API response: {bio_data}")  # Debug print
+                
+                if 'value' in bio_data:
+                    bio_data = bio_data['value']
+                    verified_data['api_response'] = bio_data
                     
-                    # Check if current or historical
-                    if not committee.get('endDate'):
-                        verified_data['current_committees'].append(committee_info)
-                    else:
-                        verified_data['historical_committees'].append(committee_info)
+                    # Debug prints for data structure
+                    print(f"Committee memberships found: {bool(bio_data.get('committeeMemberships'))}")
+                    print(f"Government posts found: {bool(bio_data.get('governmentPosts'))}")
+                    
+                    # Process committee memberships
+                    if bio_data.get('committeeMemberships'):
+                        for committee in bio_data['committeeMemberships']:
+                            print(f"Processing committee: {committee}")  # Debug print
+                            # ... rest of committee processing ...
 
-            # Process government/opposition roles
-            for role_type in ['governmentPosts', 'oppositionPosts']:
-                if bio_data.get(role_type):
-                    for role in bio_data[role_type]:
-                        if not role.get('name'):
-                            continue
-                            
-                        role_info = {
-                            'name': role.get('name'),
-                            'start_date': role.get('startDate', '')[:10] if role.get('startDate') else None,
-                            'end_date': role.get('endDate', '')[:10] if role.get('endDate') else 'present'
-                        }
-                        
-                        # Check if current or historical
-                        if not role.get('endDate'):
-                            verified_data['current_roles'].append(role_info)
-                        else:
-                            verified_data['historical_roles'].append(role_info)
-
+            except Exception as e:
+                print(f"Error parsing JSON response: {str(e)}")
+                print(f"Response content: {bio_response.text}")
+                return verified_data
+                
+        else:
+            print(f"API request failed with status code: {bio_response.status_code}")
+            print(f"Response content: {bio_response.text}")
+            
         return verified_data
 
     except Exception as e:
-        print(f"Error fetching verified positions: {str(e)}")
-        return {
-            'current_committees': [],
-            'historical_committees': [],
-            'current_roles': [],
-            'historical_roles': [],
-            'api_response': None,
-            'error': str(e)
-        }
+        print(f"Error in get_verified_positions: {str(e)}")
+        return verified_data
+    
         
 def get_mp_portrait(mp_id):
     """Get MP's thumbnail image"""
