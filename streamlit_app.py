@@ -134,6 +134,13 @@ def main():
                 verified_positions = None
                 if mp_id:
                     verified_positions = asyncio.run(get_verified_positions(mp_id))
+                    with st.expander("API Diagnostics"):
+                        st.write("MP ID:", mp_id)
+                        st.write("API Response Status:", verified_positions.get('api_response') is not None)
+                        if verified_positions.get('api_response'):
+                            st.json(verified_positions['api_response'])
+                        else:
+                            st.error("No API response received")
                     display_verified_positions(verified_positions)
                 
                 mp_data = get_mp_data(mp_id) if mp_id else None
