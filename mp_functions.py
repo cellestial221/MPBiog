@@ -390,7 +390,7 @@ def read_input_file(file_path):
     with open(file_path, 'r') as file:
         return file.read()
 
-def get_wiki_data(mp_name, max_chars=2000):  # Add max_chars parameter with default
+def get_wiki_data(mp_name, max_chars=3500):  # Add max_chars parameter with default
     """Get MP data from Wikipedia with length control"""
     try:
         wiki = wikipediaapi.Wikipedia(
