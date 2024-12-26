@@ -399,6 +399,9 @@ def get_wiki_data(mp_name):
             language='en'
         )
 
+        # Debug print
+        print(f"\nAttempting to fetch Wikipedia data for: {mp_name}")
+
         # Try different variations of the name
         possible_titles = [
             mp_name,
@@ -408,12 +411,20 @@ def get_wiki_data(mp_name):
 
         page = None
         for title in possible_titles:
+            print(f"Trying Wikipedia title: {title}")
             page = wiki.page(title)
             if page.exists():
+                print(f"Found Wikipedia page with title: {title}")
                 break
 
         if page and page.exists():
+            print("Wikipedia content retrieved:")
+            print("-" * 50)
+            print(page.summary)
+            print("-" * 50)
             return page.summary
+            
+        print("No Wikipedia page found")
         return None
 
     except Exception as e:
