@@ -540,7 +540,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     2. Their party and constituency in parentheses on a seperate line
     3. A brief introduction paragraph with their current position and VERIFIED roles
     4. A "Politics" section with a clear heading
-    5. A "Background" section with a clear heading
+    5. A "Background" section with a clear heading, focusing less on their politics and more on their life/career outside of politics
 
     Example biography for style reference:
     {examples}
