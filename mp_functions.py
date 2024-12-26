@@ -106,6 +106,62 @@ def get_mp_id(mp_name):
         print(f"Error searching for MP: {str(e)}")
     return None
 
+async def get_verified_positions(mp_id):
+    """Get verified committee memberships and roles from Parliament API"""
+    try:
+        # Add delay to handle API responsiveness
+        await asyncio.sleep(2)
+        
+        verified_data = {
+            'current_committees': [],
+            'historical_committees': [],
+            'current_roles': [],
+            'historical_roles': []
+        }
+
+        # Get biography data which includes committee memberships
+        bio_url = f"https://members-api.parliament.uk/api/Members/{mp_id}/Biography"
+        bio_response = requests.get(bio_url)
+        
+        if bio_response.status_code == 200:
+            bio_data = bio_response.json()['value']
+            
+            # Process committee memberships
+            if 'committeeMemberships' in bio_data:
+                for committee in bio_data['committeeMemberships']:
+                    committee_info = {
+                        'name': committee.get('name'),
+                        'start_date': committee.get('startDate', '')[:10],
+                        'end_date': committee.get('endDate', 'present')[:10] if committee.get('endDate') else 'present'
+                    }
+                    
+                    # Check if current or historical
+                    if not committee.get('endDate'):
+                        verified_data['current_committees'].append(committee_info)
+                    else:
+                        verified_data['historical_committees'].append(committee_info)
+
+            # Process government/opposition roles
+            for role_type in ['governmentPosts', 'oppositionPosts']:
+                if role_type in bio_data:
+                    for role in bio_data[role_type]:
+                        role_info = {
+                            'name': role.get('name'),
+                            'start_date': role.get('startDate', '')[:10],
+                            'end_date': role.get('endDate', 'present')[:10] if role.get('endDate') else 'present'
+                        }
+                        
+                        # Check if current or historical
+                        if not role.get('endDate'):
+                            verified_data['current_roles'].append(role_info)
+                        else:
+                            verified_data['historical_roles'].append(role_info)
+
+        return verified_data
+
+    except Exception as e:
+        print(f"Error fetching verified positions: {str(e)}")
+        return None
 
 def get_mp_portrait(mp_id):
     """Get MP's thumbnail image"""
@@ -371,11 +427,32 @@ def generate_biography(mp_name, input_content, examples):
         input_content = f"{input_content}\n\nWikipedia information:\n{wiki_content}"
         # Create the prompt
     current_date = datetime.now().strftime('%Y-%m-%d')  # Get current date in YYYY-MM-DD format
+
+    verified_positions_text = ""
+    if verified_positions:
+        verified_positions_text = "\nVERIFIED CURRENT POSITIONS:\n"
+        
+        if verified_positions['current_committees']:
+            verified_positions_text += "\nCommittee Memberships:\n"
+            for committee in verified_positions['current_committees']:
+                verified_positions_text += f"- {committee['name']} (Since {committee['start_date']})\n"
+                
+        if verified_positions['current_roles']:
+            verified_positions_text += "\nGovernment/Opposition Roles:\n"
+            for role in verified_positions['current_roles']:
+                verified_positions_text += f"- {role['name']} (Since {role['start_date']})\n"
+
+    
     prompt = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
+
+    IMPORTANT: For committee memberships and roles, you MUST ONLY use the following verified positions:
+    {verified_positions_text}
+    
+    DO NOT include any committee memberships or roles that are not listed above, even if you find them in other sources.
     The biography should follow the exact same structure and sections as the examples, including:
 
     1. The MP's name and role as a title
-    2. Their party and constituency in parentheses on the next line
+    2. Their party and constituency in parentheses on a seperate line
     3. A brief introduction paragraph
     4. A "Politics" section with a clear heading
     5. A "Background" section with a clear heading
@@ -579,11 +656,13 @@ def main():
         input_content = read_pdf(input_path)
         has_pdf = input_content is not None
 
+        
         # Get MP ID and API data
         mp_id = get_mp_id(mp_name)
-        mp_data = get_mp_data(mp_id) if mp_id else None
-        has_api_data = mp_data is not None and any(data for data in mp_data.values() if data)
-
+        verified_positions = asyncio.run(get_verified_positions(mp_id)) if mp_id else None
+        
+        # Generate biography with verified positions
+        biography = generate_biography(mp_name, input_content, examples, verified_positions)
         # Get Wikipedia data
         print("Fetching Wikipedia data...")
         wiki_data = get_wiki_data(mp_name)
