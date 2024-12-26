@@ -349,7 +349,7 @@ def read_pdf(file_path):
 
             # Add additional sections if found
             for section in ["Current role", "Previous roles", "World view and political affiliations"]:
-                section_match = re.search(f"{section}(.*?)(Current|World view|Background|Election|\Z)", final_text, re.DOTALL)
+                section_match = re.search(f"{section}(.*?)(Current|World view|Background|Election|\\Z)", final_text, re.DOTALL)
                 if section_match:
                     structured_text += f"{section}:\n{section_match.group(1).strip()}\n\n"
 
