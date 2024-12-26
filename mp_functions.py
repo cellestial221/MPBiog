@@ -398,7 +398,8 @@ def generate_biography(mp_name, input_content, examples):
     9. Use British English spelling AT ALL TIMES
     10. Do not include the detailed list of donations or DOB
     11. Include current significant roles and committee memberships in the top section
-    12. Be VERY VERY careful in being accurate with dates, using today's current date ({current_date}) as reference to determine both past AND current roles"""
+    12. Be VERY VERY careful in being accurate with dates, using today's current date ({current_date}) as reference to determine both past AND current roles
+    13. Be sure to be VERY careful in being accurate with Committee names, memberships, and government roles if applicable"""
 
     try:
         response = client.messages.create(
