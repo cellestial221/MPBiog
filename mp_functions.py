@@ -439,7 +439,8 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
         # Create the prompt
     current_date = datetime.now().strftime('%Y-%m-%d')  # Get current date in YYYY-MM-DD format
 
-       verified_positions_text = "\nVERIFIED POSITIONS (For reference - do not list explicitly):\n"
+    # Create verified positions text for prompt only
+    verified_positions_text = "\nVERIFIED POSITIONS (For reference - do not list explicitly):\n"
     
     if verified_positions:
         has_any_positions = False
@@ -460,7 +461,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
             verified_positions_text += "\nNo current committee memberships or government/opposition roles found. Do not include any such positions in the biography.\n"
     else:
         verified_positions_text += "\nNo verified position data available. Do not include any committee memberships or government/opposition roles in the biography.\n"
-    
+        
     prompt = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
 
     IMPORTANT: Use ONLY the following verified positions when mentioning committee memberships and roles. 
