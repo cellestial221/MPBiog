@@ -2,6 +2,7 @@ import streamlit as st
 import os
 from docx import Document
 import io
+import asyncio
 from mp_functions import (
     read_example_bios,
     read_pdf,
@@ -10,7 +11,8 @@ from mp_functions import (
     get_wiki_data,
     get_wiki_url,
     generate_biography,
-    save_biography
+    save_biography,
+    get_verified_positions  # Add this import
 )
 
 # Set page config
@@ -20,6 +22,55 @@ st.set_page_config(page_title="MP Biography Generator", layout="wide")
 os.makedirs('uploads', exist_ok=True)
 os.makedirs('new_bios', exist_ok=True)
 os.makedirs('example_bios', exist_ok=True)
+
+def display_verified_positions(verified_data):
+    """Display verified Parliamentary positions in the sidebar"""
+    st.sidebar.title("Verified Parliament Data")
+    
+    if not verified_data:
+        st.sidebar.warning("No verified data available from Parliament API")
+        return
+        
+    # Current Committees
+    st.sidebar.subheader("Current Committee Memberships")
+    if verified_data['current_committees']:
+        for committee in verified_data['current_committees']:
+            st.sidebar.markdown(f"• **{committee['name']}**  \n" 
+                              f"  Since: {committee['start_date']}")
+    else:
+        st.sidebar.info("No current committee memberships")
+        
+    # Current Roles
+    st.sidebar.subheader("Current Government/Opposition Roles")
+    if verified_data['current_roles']:
+        for role in verified_data['current_roles']:
+            st.sidebar.markdown(f"• **{role['name']}**  \n"
+                              f"  Since: {role['start_date']}")
+    else:
+        st.sidebar.info("No current government/opposition roles")
+        
+    # Historical Data (Collapsible)
+    with st.sidebar.expander("View Historical Positions"):
+        st.subheader("Past Committee Memberships")
+        if verified_data['historical_committees']:
+            for committee in verified_data['historical_committees']:
+                st.markdown(f"• **{committee['name']}**  \n"
+                          f"  {committee['start_date']} - {committee['end_date']}")
+        else:
+            st.info("No past committee memberships")
+            
+        st.subheader("Past Government/Opposition Roles")
+        if verified_data['historical_roles']:
+            for role in verified_data['historical_roles']:
+                st.markdown(f"• **{role['name']}**  \n"
+                          f"  {role['start_date']} - {role['end_date']}")
+        else:
+            st.info("No past government/opposition roles")
+    
+    # Debug Data (Collapsible)
+    if verified_data.get('api_response'):
+        with st.sidebar.expander("Debug: Raw API Data"):
+            st.json(verified_data['api_response'])
 
 def main():
     st.title("MP Biography Generator")
@@ -78,6 +129,13 @@ def main():
                 status_text.text('Fetching MP data...')
                 progress_bar.progress(50)
                 mp_id = get_mp_id(mp_name)
+                
+                # Get and display verified positions
+                verified_positions = None
+                if mp_id:
+                    verified_positions = asyncio.run(get_verified_positions(mp_id))
+                    display_verified_positions(verified_positions)
+                
                 mp_data = get_mp_data(mp_id) if mp_id else None
                 has_api_data = mp_data is not None and any(data for data in mp_data.values() if data)
 
@@ -105,7 +163,7 @@ def main():
                 # Generate biography
                 status_text.text('Generating biography...')
                 progress_bar.progress(90)
-                biography = generate_biography(mp_name, input_content, examples)
+                biography = generate_biography(mp_name, input_content, examples, verified_positions)
 
                 # Save biography
                 status_text.text('Saving biography...')
@@ -142,7 +200,7 @@ def main():
         st.write("""
         This tool generates MP biographies using:
         - Optional user submitted PDF
-        - Parliament's API data
+        - Parliament's API data (verified positions shown in sidebar)
         - Wikipedia information
 
         The biography will be generated using available sources.
