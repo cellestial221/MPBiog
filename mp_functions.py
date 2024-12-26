@@ -419,7 +419,7 @@ def get_wiki_url(mp_name):
         return None
 
 
-def generate_biography(mp_name, input_content, examples):
+def generate_biography(mp_name, input_content, examples, verified_positions=None):
     # Validate and clean inputs
     if isinstance(input_content, list):
         input_content = ' '.join(str(x) for x in input_content)
@@ -459,7 +459,6 @@ def generate_biography(mp_name, input_content, examples):
             verified_positions_text += "\nGovernment/Opposition Roles:\n"
             for role in verified_positions['current_roles']:
                 verified_positions_text += f"- {role['name']} (Since {role['start_date']})\n"
-
     
     prompt = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
 
