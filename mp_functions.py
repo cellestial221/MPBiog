@@ -116,8 +116,12 @@ async def get_verified_positions(mp_id):
             'current_committees': [],
             'historical_committees': [],
             'current_roles': [],
-            'historical_roles': []
+            'historical_roles': [],
+            'api_response': None  # Store raw API response for debugging
         }
+
+        if not mp_id:
+            return verified_data
 
         # Get biography data which includes committee memberships
         bio_url = f"https://members-api.parliament.uk/api/Members/{mp_id}/Biography"
@@ -125,14 +129,18 @@ async def get_verified_positions(mp_id):
         
         if bio_response.status_code == 200:
             bio_data = bio_response.json()['value']
+            verified_data['api_response'] = bio_data  # Store full response
             
             # Process committee memberships
-            if 'committeeMemberships' in bio_data:
+            if bio_data.get('committeeMemberships'):
                 for committee in bio_data['committeeMemberships']:
+                    if not committee.get('name'):
+                        continue
+                        
                     committee_info = {
                         'name': committee.get('name'),
-                        'start_date': committee.get('startDate', '')[:10],
-                        'end_date': committee.get('endDate', 'present')[:10] if committee.get('endDate') else 'present'
+                        'start_date': committee.get('startDate', '')[:10] if committee.get('startDate') else None,
+                        'end_date': committee.get('endDate', '')[:10] if committee.get('endDate') else 'present'
                     }
                     
                     # Check if current or historical
@@ -143,12 +151,15 @@ async def get_verified_positions(mp_id):
 
             # Process government/opposition roles
             for role_type in ['governmentPosts', 'oppositionPosts']:
-                if role_type in bio_data:
+                if bio_data.get(role_type):
                     for role in bio_data[role_type]:
+                        if not role.get('name'):
+                            continue
+                            
                         role_info = {
                             'name': role.get('name'),
-                            'start_date': role.get('startDate', '')[:10],
-                            'end_date': role.get('endDate', 'present')[:10] if role.get('endDate') else 'present'
+                            'start_date': role.get('startDate', '')[:10] if role.get('startDate') else None,
+                            'end_date': role.get('endDate', '')[:10] if role.get('endDate') else 'present'
                         }
                         
                         # Check if current or historical
@@ -161,8 +172,15 @@ async def get_verified_positions(mp_id):
 
     except Exception as e:
         print(f"Error fetching verified positions: {str(e)}")
-        return None
-
+        return {
+            'current_committees': [],
+            'historical_committees': [],
+            'current_roles': [],
+            'historical_roles': [],
+            'api_response': None,
+            'error': str(e)
+        }
+        
 def get_mp_portrait(mp_id):
     """Get MP's thumbnail image"""
     if not mp_id:
