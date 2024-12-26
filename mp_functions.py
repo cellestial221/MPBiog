@@ -570,7 +570,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     1. The MP's name and role as a title
     2. Their party and constituency in parentheses on a seperate line
     3. A brief introduction paragraph with their current position and VERIFIED roles
-    4. A "Politics" section with a clear heading
+    4. A "Politics" section with a clear heading, this should be the chunkiest section
     5. A "Background" section with a clear heading, focusing less on their politics and more on their life/career outside of politics
 
     Example biography for style reference:
@@ -593,9 +593,9 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     11. Include current significant roles and committee memberships in the top section
     12. Be VERY VERY careful in being accurate with dates, using today's current date ({current_date}) as reference to determine both past AND current roles
     13. Be sure to be VERY careful in being accurate with Committee names, memberships, and government roles if applicable
-    14. If recent parliamentary contributions are provided, include a 1-2 sentence summary at the end of the Politics section
+    14. If recent parliamentary contributions are provided, include a SHORT 1-2 sentence summary at the end of the Politics section
     15. Use the official synopsis where provided, incorporating its verified information naturally into the narrative
-    16. Do not include Date of Birth"""
+    16. Do NOT include Date of Birth"""
 
     try:
         response = client.messages.create(
