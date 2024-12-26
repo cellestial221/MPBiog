@@ -439,23 +439,32 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
         # Create the prompt
     current_date = datetime.now().strftime('%Y-%m-%d')  # Get current date in YYYY-MM-DD format
 
-    verified_positions_text = ""
+       verified_positions_text = "\nVERIFIED POSITIONS (For reference - do not list explicitly):\n"
+    
     if verified_positions:
-        verified_positions_text = "\nVERIFIED CURRENT POSITIONS:\n"
+        has_any_positions = False
         
         if verified_positions['current_committees']:
+            has_any_positions = True
             verified_positions_text += "\nCommittee Memberships:\n"
             for committee in verified_positions['current_committees']:
                 verified_positions_text += f"- {committee['name']} (Since {committee['start_date']})\n"
                 
         if verified_positions['current_roles']:
+            has_any_positions = True
             verified_positions_text += "\nGovernment/Opposition Roles:\n"
             for role in verified_positions['current_roles']:
                 verified_positions_text += f"- {role['name']} (Since {role['start_date']})\n"
+                
+        if not has_any_positions:
+            verified_positions_text += "\nNo current committee memberships or government/opposition roles found. Do not include any such positions in the biography.\n"
+    else:
+        verified_positions_text += "\nNo verified position data available. Do not include any committee memberships or government/opposition roles in the biography.\n"
     
     prompt = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
 
-    IMPORTANT: For committee memberships and roles, you MUST ONLY use the following verified positions:
+    IMPORTANT: Use ONLY the following verified positions when mentioning committee memberships and roles. 
+    DO NOT list them explicitly, but incorporate them naturally into the narrative:
     {verified_positions_text}
     
     DO NOT include any committee memberships or roles that are not listed above, even if you find them in other sources.
