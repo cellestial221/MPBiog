@@ -390,19 +390,16 @@ def read_input_file(file_path):
     with open(file_path, 'r') as file:
         return file.read()
 
-def get_wiki_data(mp_name):
-    """Get MP data from Wikipedia"""
+def get_wiki_data(mp_name, max_chars=2000):  # Add max_chars parameter with default
+    """Get MP data from Wikipedia with length control"""
     try:
-        # Initialize Wikipedia API
         wiki = wikipediaapi.Wikipedia(
             user_agent='MP_Biography_Generator (yourname@example.com)',
             language='en'
         )
 
-        # Debug print
         print(f"\nAttempting to fetch Wikipedia data for: {mp_name}")
-
-        # Try different variations of the name
+        
         possible_titles = [
             mp_name,
             f"{mp_name} (politician)",
@@ -418,11 +415,33 @@ def get_wiki_data(mp_name):
                 break
 
         if page and page.exists():
-            print("Wikipedia content retrieved:")
+            # Get summary first
+            content = page.summary
+            
+            # Get first level sections up to max length
+            if len(content) < max_chars:
+                for section in page.sections:
+                    # Skip sections we usually don't want in MP bios
+                    if section.title.lower() in ['see also', 'references', 'external links', 'notes', 'bibliography']:
+                        continue
+                        
+                    section_text = f"\n\n{section.title}\n{section.text}"
+                    
+                    # Check if adding this section would exceed max length
+                    if len(content + section_text) > max_chars:
+                        break
+                        
+                    content += section_text
+
+            print("\nWikipedia content retrieved:")
             print("-" * 50)
-            print(page.summary)
+            print(f"Length: {len(content)} characters")
+            print("Content preview (first 500 chars):")
+            print(content[:500])
+            print("...")
             print("-" * 50)
-            return page.summary
+            
+            return content
             
         print("No Wikipedia page found")
         return None
@@ -430,6 +449,7 @@ def get_wiki_data(mp_name):
     except Exception as e:
         print(f"Error fetching Wikipedia data: {str(e)}")
         return None
+
 
 def get_wiki_url(mp_name):
     """Get Wikipedia URL for MP"""
