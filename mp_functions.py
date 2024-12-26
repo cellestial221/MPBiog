@@ -587,14 +587,15 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     5. Use clear section headers with proper spacing before and after
     6. Focus on the most significant aspects of their career and current role, be specific and detailed
     7. Organise information chronologically within each section
-    8. Keep sentences concise, factual, and clear
+    8. Keep sentences fairly concise, factual, and clear
     9. Use British English spelling AT ALL TIMES
-    10. Do not include the detailed list of donations or DOB
+    10. Do not include the detailed list of donations
     11. Include current significant roles and committee memberships in the top section
     12. Be VERY VERY careful in being accurate with dates, using today's current date ({current_date}) as reference to determine both past AND current roles
     13. Be sure to be VERY careful in being accurate with Committee names, memberships, and government roles if applicable
     14. If recent parliamentary contributions are provided, include a 1-2 sentence summary at the end of the Politics section
-    15. Use the official synopsis where provided, incorporating its verified information naturally into the narrative"""
+    15. Use the official synopsis where provided, incorporating its verified information naturally into the narrative
+    16. Do not include Date of Birth"""
 
     try:
         response = client.messages.create(
