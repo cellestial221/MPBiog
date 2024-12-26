@@ -464,6 +464,14 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
         
     prompt = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
 
+    CRITICAL REQUIREMENTS:
+    1. ONLY include specific, verifiable facts about this MP - no generic statements about MP duties
+    2. For career history, try to include named positions, companies, and years - no vague industry descriptions
+    3. Focus on concrete facts: dates, organizations, position titles, qualifications, specific achievements
+    4. DO NOT include any of these generic phrases or concepts:
+       - "advocating for constituents' interests"
+       - "matters that matter to constituents"    
+    
     IMPORTANT: Use ONLY the following verified positions when mentioning committee memberships and roles. 
     DO NOT list them explicitly, but incorporate them naturally into the narrative:
     {verified_positions_text}
@@ -473,7 +481,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
 
     1. The MP's name and role as a title
     2. Their party and constituency in parentheses on a seperate line
-    3. A brief introduction paragraph
+    3. A brief introduction paragraph with their current position and VERIFIED roles
     4. A "Politics" section with a clear heading
     5. A "Background" section with a clear heading
 
@@ -491,7 +499,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     5. Use clear section headers with proper spacing before and after
     6. Focus on the most significant aspects of their career and current role, be specific and detailed
     7. Organise information chronologically within each section
-    8. Keep sentences concise, factual, and clear - do not waffle
+    8. Keep sentences concise, factual, and clear
     9. Use British English spelling AT ALL TIMES
     10. Do not include the detailed list of donations or DOB
     11. Include current significant roles and committee memberships in the top section
