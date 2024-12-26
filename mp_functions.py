@@ -593,7 +593,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     11. Include current significant roles and committee memberships in the top section
     12. Be VERY VERY careful in being accurate with dates, using today's current date ({current_date}) as reference to determine both past AND current roles
     13. Be sure to be VERY careful in being accurate with Committee names, memberships, and government roles if applicable
-    14. If recent parliamentary contributions are provided, include a brief factual summary at the end of the Politics section
+    14. If recent parliamentary contributions are provided, include a 1-2 sentence summary at the end of the Politics section
     15. Use the official synopsis where provided, incorporating its verified information naturally into the narrative"""
 
     try:
