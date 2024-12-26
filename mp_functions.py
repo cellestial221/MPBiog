@@ -392,10 +392,10 @@ def generate_biography(mp_name, input_content, examples):
     3. Rephrase and restructure the information - do not copy phrases directly
     4. Maintain the same professional tone and level of detail
     5. Use clear section headers with proper spacing before and after
-    6. Focus on the most significant aspects of their career and current role, be specific and detailed
+    6. Focus on the most significant aspects of their career and current role, be specific and detailed, especially with roles and committees
     7. Organise information chronologically within each section
     8. Keep sentences concise, factual, and clear
-    9. Use British English spelling ONLY
+    9. Use British English spelling AT ALL TIMES
     10. Do not include the detailed list of donations or DOB
     11. Include current significant roles in the top section
     12. Be VERY VERY careful in being accurate with dates, using today's current date ({current_date}) as reference to determine both past AND current roles"""
