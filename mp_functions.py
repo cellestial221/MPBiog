@@ -107,15 +107,48 @@ def get_mp_id(mp_name):
     return None
 
 async def get_verified_positions(mp_id):
-    """Get verified committee memberships and roles from Parliament API"""
+    """Get verified data from Parliament API"""
     try:
         verified_data = {
             'current_committees': [],
             'historical_committees': [],
             'current_roles': [],
             'historical_roles': [],
+            'synopsis': None,
+            'recent_contributions': None,
             'api_response': None
         }
+
+        # Get synopsis
+        synopsis_url = f"https://members-api.parliament.uk/api/Members/{mp_id}/Synopsis"
+        synopsis_response = requests.get(synopsis_url)
+        if synopsis_response.status_code == 200:
+            synopsis_data = synopsis_response.json()
+            if 'value' in synopsis_data:
+                verified_data['synopsis'] = synopsis_data['value']
+
+        # Get contribution summary
+        contributions_url = f"https://members-api.parliament.uk/api/Members/{mp_id}/ContributionSummary"
+        contributions_response = requests.get(contributions_url)
+        if contributions_response.status_code == 200:
+            contributions_data = contributions_response.json()
+            if 'items' in contributions_data and contributions_data['items']:
+                # Get most recent contributions (last 30 days)
+                recent_contributions = {
+                    'total_count': 0,
+                    'recent_debates': []
+                }
+                
+                for item in contributions_data['items'][:5]:  # Look at 5 most recent
+                    contribution = item['value']
+                    recent_contributions['total_count'] += contribution.get('totalContributions', 0)
+                    recent_contributions['recent_debates'].append({
+                        'title': contribution.get('debateTitle'),
+                        'date': contribution.get('sittingDate'),
+                        'contributions': contribution.get('totalContributions', 0)
+                    })
+                
+                verified_data['recent_contributions'] = recent_contributions
 
         bio_url = f"https://members-api.parliament.uk/api/Members/{mp_id}/Biography"
         bio_response = requests.get(bio_url)
@@ -439,28 +472,52 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
         # Create the prompt
     current_date = datetime.now().strftime('%Y-%m-%d')  # Get current date in YYYY-MM-DD format
 
-    # Create verified positions text for prompt only
-    verified_positions_text = "\nVERIFIED POSITIONS (For reference - do not list explicitly):\n"
+# Create verified positions text
+    verified_positions_text = "\nVERIFIED PARLIAMENTARY INFORMATION:\n"
     
     if verified_positions:
         has_any_positions = False
+        has_any_content = False
         
+        # Add synopsis if available
+        if verified_positions.get('synopsis'):
+            has_any_content = True
+            verified_positions_text += f"\nOFFICIAL SYNOPSIS:\n{verified_positions['synopsis']}\n"
+        
+        # Add committee memberships
         if verified_positions['current_committees']:
             has_any_positions = True
-            verified_positions_text += "\nCommittee Memberships:\n"
+            verified_positions_text += "\nCurrent Committee Memberships:\n"
             for committee in verified_positions['current_committees']:
                 verified_positions_text += f"- {committee['name']} (Since {committee['start_date']})\n"
-                
+        
+        # Add roles
         if verified_positions['current_roles']:
             has_any_positions = True
-            verified_positions_text += "\nGovernment/Opposition Roles:\n"
+            verified_positions_text += "\nCurrent Government/Opposition Roles:\n"
             for role in verified_positions['current_roles']:
                 verified_positions_text += f"- {role['name']} (Since {role['start_date']})\n"
                 
         if not has_any_positions:
             verified_positions_text += "\nNo current committee memberships or government/opposition roles found. Do not include any such positions in the biography.\n"
+                
+        # Add recent contributions if available
+        if verified_positions.get('recent_contributions'):
+            has_any_content = True
+            contrib = verified_positions['recent_contributions']
+            verified_positions_text += "\nRecent Parliamentary Activity:\n"
+            if contrib['recent_debates']:
+                for debate in contrib['recent_debates']:
+                    debate_date = datetime.strptime(debate['date'][:10], '%Y-%m-%d').strftime('%d %B %Y')
+                    verified_positions_text += f"- {debate['contributions']} contributions in '{debate['title']}' on {debate_date}\n"
+            else:
+                verified_positions_text += "No recent contributions found in Parliament.\n"
+                
+        if not has_any_content and not has_any_positions:
+            verified_positions_text += "\nNo verified parliamentary information available. Do not include unverified committee memberships, roles, or parliamentary activities.\n"
+            
     else:
-        verified_positions_text += "\nNo verified position data available. Do not include any committee memberships or government/opposition roles in the biography.\n"
+        verified_positions_text += "\nNo verified position data available. Do not include any committee memberships, government/opposition roles, or parliamentary activities in the biography.\n""
         
     prompt = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
 
@@ -504,7 +561,9 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     10. Do not include the detailed list of donations or DOB
     11. Include current significant roles and committee memberships in the top section
     12. Be VERY VERY careful in being accurate with dates, using today's current date ({current_date}) as reference to determine both past AND current roles
-    13. Be sure to be VERY careful in being accurate with Committee names, memberships, and government roles if applicable"""
+    13. Be sure to be VERY careful in being accurate with Committee names, memberships, and government roles if applicable
+    14. If recent parliamentary contributions are provided, include a brief factual summary at the end of the Politics section
+    15. Use the official synopsis where provided, incorporating its verified information naturally into the narrative"""
 
     try:
         response = client.messages.create(
