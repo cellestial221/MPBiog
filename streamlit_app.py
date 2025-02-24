@@ -5,14 +5,13 @@ import io
 import asyncio
 from mp_functions import (
     read_example_bios,
-    read_pdf,
     get_mp_id,
     get_mp_data,
     get_wiki_data,
     get_wiki_url,
     generate_biography,
     save_biography,
-    get_verified_positions  # Add this import
+    get_verified_positions
 )
 
 # Set page config
@@ -92,7 +91,13 @@ def main():
         # Input section
         st.header("Input")
         mp_name = st.text_input("Enter MP name:")
-        uploaded_file = st.file_uploader("Upload PDF file (Optional)", type=['pdf'], help="PDF is optional. You can generate a biography using only API and Wikipedia data.")
+        
+        # CHANGE 1: Replace PDF uploader with text area
+        user_input_text = st.text_area(
+            "Enter additional information about the MP (Optional):", 
+            height=250,
+            help="Add any additional information about the MP you'd like to include in the biography."
+        )
 
         if st.button("Generate Biography") and mp_name:
             # Validate inputs
@@ -101,14 +106,6 @@ def main():
                 return
 
             try:
-                pdf_path = None
-                # Optional PDF processing
-                if uploaded_file:
-                    # Save uploaded file
-                    pdf_path = os.path.join('uploads', uploaded_file.name)
-                    with open(pdf_path, 'wb') as f:
-                        f.write(uploaded_file.getbuffer())
-
                 progress_bar = st.progress(0)
                 status_text = st.empty()
 
@@ -117,17 +114,12 @@ def main():
                 progress_bar.progress(10)
                 examples = read_example_bios()
 
-                # Optional PDF content
-                input_content = ""
-                has_pdf = False
-                if pdf_path and os.path.exists(pdf_path):
-                    status_text.text('Reading PDF file...')
-                    progress_bar.progress(30)
-                    input_content = read_pdf(pdf_path)
-                    has_pdf = input_content is not None
+                # Use text input instead of PDF content
+                input_content = user_input_text if user_input_text else ""
+                has_user_input = bool(user_input_text.strip())
 
                 status_text.text('Fetching MP data...')
-                progress_bar.progress(50)
+                progress_bar.progress(40)
                 mp_id = get_mp_id(mp_name)
                 
                 # Get and display verified positions
@@ -162,7 +154,7 @@ def main():
                 
                 # Combine all available information
                 if not input_content and has_api_data:
-                    # If no PDF, use formatted MP data as input content
+                    # If no user input, use formatted MP data as input content
                     from mp_functions import format_mp_data
                     input_content = format_mp_data(mp_data)
 
@@ -183,7 +175,7 @@ def main():
                 # Save biography
                 status_text.text('Saving biography...')
                 saved_path = save_biography(mp_name, biography,
-                                        has_pdf=has_pdf,
+                                        has_pdf=False,  # No PDF anymore
                                         has_api_data=has_api_data,
                                         has_wiki_data=has_wiki_data,
                                         wiki_url=wiki_url)
@@ -205,21 +197,16 @@ def main():
 
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
-            finally:
-                # Clean up uploaded file if it exists
-                if pdf_path and os.path.exists(pdf_path):
-                    os.remove(pdf_path)
 
     with col2:
         st.header("Information")
         st.write("""
         This tool generates MP biographies using:
-        - Optional user submitted PDF
+        - Your optional input text about the MP
         - Parliament's API data (verified positions shown in sidebar)
         - Wikipedia information
 
-        The biography will be generated using available sources.
-        PDF upload is completely optional.
+        The biography will be generated using all available sources.
         """)
 
 if __name__ == "__main__":
