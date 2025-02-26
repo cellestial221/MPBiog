@@ -537,97 +537,109 @@ def get_mp_wiki_link(mp_name):
         return None
 
 def get_wiki_data(mp_name, max_chars=3500):
-    """Get MP data from Wikipedia with length control"""
+    """Get comprehensive MP data from Wikipedia with length control"""
     try:
         print(f"\nAttempting to find Wikipedia data for: {mp_name}")
 
-        # Get the direct link
+        # First try to get the direct link from the MPs list
         mp_wiki_url = get_mp_wiki_link(mp_name)
 
         if not mp_wiki_url:
             print("Could not find MP in the 2024 elected MPs list")
             return None
 
-        # Use requests + BeautifulSoup for more control over content extraction
-        print(f"Fetching content from: {mp_wiki_url}")
-        response = requests.get(mp_wiki_url)
-        if response.status_code != 200:
-            print(f"Error accessing MP Wikipedia page: Status code {response.status_code}")
+        # Extract page title from URL
+        page_title = mp_wiki_url.split('/')[-1].replace('_', ' ')
+        print(f"Found Wikipedia page: {page_title}")
+
+        # Use the Wikipedia API to get full content
+        wiki = wikipediaapi.Wikipedia(
+            user_agent='MP_Biography_Generator (yourname@example.com)',
+            language='en'
+        )
+
+        # Get the page using the API
+        page = wiki.page(page_title)
+
+        if not page.exists():
+            print(f"Page does not exist in Wikipedia API: {page_title}")
             return None
 
-        # Parse HTML content
-        soup = BeautifulSoup(response.text, 'html.parser')
+        print(f"Successfully loaded page: {page.title}")
 
-        # Get the title to confirm we have the right page
-        title = soup.find('h1', id='firstHeading')
-        if title:
-            print(f"Page title: {title.get_text().strip()}")
+        # Get the full summary first
+        content = page.summary
+        print(f"Summary length: {len(content)} characters")
 
-        # Get content
-        content_div = soup.find('div', class_='mw-parser-output')
-        if not content_div:
-            print("Could not find content on Wikipedia page")
-            return None
-
-        # Extract the introduction/summary (first paragraphs before first heading)
-        summary = ""
-        for p in content_div.find_all('p', recursive=False):
-            if p.text.strip():
-                summary += p.text.strip() + "\n\n"
-                # If we have a substantial summary, stop
-                if len(summary) > 200:
-                    break
-
-        # Find all section headings and their content
-        sections = {}
-        current_section = None
-        section_content = []
-
-        for element in content_div.children:
-            # Check if this is a heading
-            if element.name in ['h2', 'h3'] and not element.get('class', [''])[0] == 'toc':
-                # Save previous section
-                if current_section and section_content:
-                    sections[current_section] = '\n'.join(section_content)
-
-                # Start new section
-                current_section = element.get_text().strip()
-                if any(x in current_section for x in ['References', 'External links', 'See also', 'Notes']):
-                    current_section = None  # Skip these sections
-                section_content = []
-
-            # Add content to current section
-            elif current_section and element.name == 'p' and element.text.strip():
-                section_content.append(element.text.strip())
-
-        # Save final section
-        if current_section and section_content:
-            sections[current_section] = '\n'.join(section_content)
-
-        # Combine summary and selected sections into final content
-        # Prioritize important biographical sections
-        content = summary
+        # Define important biographical sections to prioritize
         important_sections = [
-            'early life', 'education', 'career', 'personal life',
-            'political career', 'background', 'parliamentary career'
+            'early life', 'education', 'background', 'career', 'personal life',
+            'political career', 'parliamentary career', 'political views',
+            'controversies', 'awards', 'publications'
         ]
 
-        # First add important sections
-        for section_name, section_text in sections.items():
-            if any(imp_section in section_name.lower() for imp_section in important_sections):
-                if len(content) + len(section_name) + len(section_text) + 10 < max_chars:
-                    content += f"\n\n{section_name}\n{section_text}"
+        # Add essential sections first
+        essential_added = False
+        for section in page.sections:
+            section_title_lower = section.title.lower()
 
-        # If we still have room, add other sections
-        if len(content) < max_chars * 0.7:  # Only if we have used less than 70% of max
-            for section_name, section_text in sections.items():
-                if not any(imp_section in section_name.lower() for imp_section in important_sections):
-                    if len(content) + len(section_name) + len(section_text) + 10 < max_chars:
-                        content += f"\n\n{section_name}\n{section_text}"
+            # Skip irrelevant sections
+            if any(x in section_title_lower for x in ['see also', 'references', 'external links', 'notes', 'bibliography']):
+                continue
+
+            # Check if this is an important biographical section
+            is_important = any(imp in section_title_lower for imp in important_sections)
+
+            # Add important sections first
+            if is_important:
+                section_text = f"\n\n{section.title}\n{section.text}"
+
+                # Check if adding this section would exceed max length
+                if len(content) + len(section_text) <= max_chars:
+                    content += section_text
+                    essential_added = True
+                    print(f"Added important section: {section.title} ({len(section_text)} chars)")
+
+        # If we have room, add other sections that weren't important but might be relevant
+        if not essential_added or len(content) < max_chars * 0.7:
+            for section in page.sections:
+                section_title_lower = section.title.lower()
+
+                # Skip already processed important sections and irrelevant ones
+                if (any(imp in section_title_lower for imp in important_sections) or
+                    any(x in section_title_lower for x in ['see also', 'references', 'external links', 'notes', 'bibliography'])):
+                    continue
+
+                section_text = f"\n\n{section.title}\n{section.text}"
+
+                # Check if adding this section would exceed max length
+                if len(content) + len(section_text) <= max_chars:
+                    content += section_text
+                    print(f"Added additional section: {section.title} ({len(section_text)} chars)")
+
+        # Add subsections if we still have room
+        if len(content) < max_chars * 0.9:
+            for section in page.sections:
+                for subsection in section.sections:
+                    subsection_title_lower = subsection.title.lower()
+
+                    # Skip irrelevant subsections
+                    if any(x in subsection_title_lower for x in ['see also', 'references', 'external links', 'notes']):
+                        continue
+
+                    subsection_text = f"\n\n{section.title} - {subsection.title}\n{subsection.text}"
+
+                    # Check if adding this subsection would exceed max length
+                    if len(content) + len(subsection_text) <= max_chars:
+                        content += subsection_text
+                        print(f"Added subsection: {subsection.title} ({len(subsection_text)} chars)")
 
         # Log summary of what we found
-        print(f"Retrieved {len(content)} characters of content")
-        print(f"Content preview: {content[:200]}...")
+        print(f"Total content length: {len(content)} characters")
+        print(f"Content sections: {content.count('\\n\\n')}")
+
+        if len(content) < 500:
+            print("WARNING: Retrieved content is very short. Content may be incomplete.")
 
         return content
 
