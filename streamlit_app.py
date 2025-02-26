@@ -4,6 +4,7 @@ from docx import Document
 import io
 import asyncio
 import json
+import time
 from datetime import datetime
 from mp_functions import (
     read_example_bios,
@@ -23,6 +24,10 @@ st.set_page_config(page_title="MP Biography Generator", layout="wide")
 os.makedirs('uploads', exist_ok=True)
 os.makedirs('new_bios', exist_ok=True)
 os.makedirs('example_bios', exist_ok=True)
+
+# Initialize session state for cancel mechanism
+if 'cancel_generation' not in st.session_state:
+    st.session_state.cancel_generation = False
 
 def display_verified_positions(verified_data):
     """Display verified Parliamentary positions in the sidebar"""
@@ -144,16 +149,19 @@ def relevant_comments_section():
                             "text": comment_text
                         })
 
-            # Buttons for managing comments
-            col1, col2, col3 = st.columns(3)
+            # Buttons for managing comments - simplified to just two options
+            col1, col2 = st.columns(2)
             with col1:
                 st.button("Add Another Comment", on_click=add_comment_form)
             with col2:
-                st.button("Cancel", on_click=cancel_comments, type="secondary")
-            with col3:
-                st.button("Done Adding Comments", on_click=toggle_comments, type="primary")
+                st.button("Cancel Comments", on_click=cancel_comments, type="secondary")
 
     return comments if st.session_state.show_comments else []
+
+def cancel_generation():
+    """Set the cancel flag to true"""
+    st.session_state.cancel_generation = True
+    st.warning("Cancellation requested. The process will stop at the next checkpoint.")
 
 def main():
     st.title("MP Biography Generator")
@@ -186,109 +194,161 @@ def main():
         # Relevant comments section - full width
         comments = relevant_comments_section()
 
-        if st.button("Generate Biography") and mp_name:
-            # Validate inputs
-            if not mp_name.strip():
-                st.error("Please enter an MP name")
-                return
+        generate_button = st.button("Generate Biography")
 
-            try:
+        if generate_button and mp_name:
+            # Reset the cancel flag at the start of generation
+            st.session_state.cancel_generation = False
+
+            # Create a container for the cancel button and progress indicators
+            progress_container = st.container()
+
+            with progress_container:
+                # Add cancel button prominently at the top
+                st.button("Cancel Generation", on_click=cancel_generation, type="secondary")
+
                 progress_bar = st.progress(0)
                 status_text = st.empty()
 
-                # Show progress
-                status_text.text('Reading example biographies...')
-                progress_bar.progress(10)
-                examples = read_example_bios()
-
-                # Use text input
-                input_content = user_input_text if user_input_text else ""
-                has_user_input = bool(user_input_text.strip())
-
-                status_text.text('Fetching MP data...')
-                progress_bar.progress(30)
-                mp_id = get_mp_id(mp_name)
-
-                # Get and display verified positions
-                verified_positions = None
-                if mp_id:
-                    verified_positions = asyncio.run(get_verified_positions(mp_id))
-                    with st.expander("API Diagnostics"):
-                        st.write("MP ID:", mp_id)
-                        st.write("API Response Status:", verified_positions.get('api_response') is not None)
-                        if verified_positions.get('api_response'):
-                            st.json(verified_positions['api_response'])
-                        else:
-                            st.error("No API response received")
-                    display_verified_positions(verified_positions)
-
-                mp_data = get_mp_data(mp_id) if mp_id else None
-                has_api_data = mp_data is not None and any(data for data in mp_data.values() if data)
-
-                status_text.text('Fetching Wikipedia data...')
-                progress_bar.progress(60)
-                wiki_data = get_wiki_data(mp_name)
-                has_wiki_data = wiki_data is not None
-                wiki_url = get_wiki_url(mp_name) if has_wiki_data else None
-
-                with st.expander("Debug Information"):
-                    st.subheader("Wikipedia Data")
-                    if wiki_data:
-                        st.text("Wikipedia content found")
-                        st.text(f"Length: {len(wiki_data)} characters")
-                        st.text(wiki_data[:500] + "...")
-                    else:
-                        st.text("No Wikipedia content found")
-
-                    if comments:
-                        st.subheader("User Comments")
-                        st.json(comments)
-
-                # Combine all available information
-                if not input_content and has_api_data:
-                    # If no user input, use formatted MP data as input content
-                    from mp_functions import format_mp_data
-                    input_content = format_mp_data(mp_data)
-
-                # If still no content, use Wikipedia
-                if not input_content and has_wiki_data:
-                    input_content = wiki_data
-
-                # Check if we have any content
-                if not input_content:
-                    st.error("No information found for this MP. Please check the name and try again.")
+                # Validate inputs
+                if not mp_name.strip():
+                    st.error("Please enter an MP name")
                     return
 
-                # Generate biography
-                status_text.text('Generating biography...')
-                progress_bar.progress(80)
-                biography = generate_biography(mp_name, input_content, examples, verified_positions, comments)
+                try:
+                    # Show progress
+                    status_text.text('Reading example biographies...')
+                    progress_bar.progress(10)
 
-                # Save biography
-                status_text.text('Saving biography...')
-                saved_path = save_biography(mp_name, biography,
-                                        has_pdf=False,
-                                        has_api_data=has_api_data,
-                                        has_wiki_data=has_wiki_data,
-                                        wiki_url=wiki_url)
+                    # Check for cancellation
+                    if st.session_state.cancel_generation:
+                        st.warning("Generation cancelled.")
+                        return
 
-                progress_bar.progress(100)
-                status_text.text('Complete!')
+                    examples = read_example_bios()
 
-                # Prepare file for download
-                with open(saved_path, 'rb') as file:
-                    bio_bytes = file.read()
+                    # Use text input
+                    input_content = user_input_text if user_input_text else ""
+                    has_user_input = bool(user_input_text.strip())
 
-                st.success('Biography generated successfully!')
-                st.download_button(
-                    label="Download Biography",
-                    data=bio_bytes,
-                    file_name=f"{mp_name}_biography.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+                    status_text.text('Fetching MP data...')
+                    progress_bar.progress(30)
 
-            except Exception as e:
-                st.error(f"An error occurred: {str(e)}")
+                    # Check for cancellation
+                    if st.session_state.cancel_generation:
+                        st.warning("Generation cancelled.")
+                        return
+
+                    mp_id = get_mp_id(mp_name)
+
+                    # Get and display verified positions
+                    verified_positions = None
+                    if mp_id:
+                        verified_positions = asyncio.run(get_verified_positions(mp_id))
+                        with st.expander("API Diagnostics"):
+                            st.write("MP ID:", mp_id)
+                            st.write("API Response Status:", verified_positions.get('api_response') is not None)
+                            if verified_positions.get('api_response'):
+                                st.json(verified_positions['api_response'])
+                            else:
+                                st.error("No API response received")
+                        display_verified_positions(verified_positions)
+
+                    # Check for cancellation
+                    if st.session_state.cancel_generation:
+                        st.warning("Generation cancelled.")
+                        return
+
+                    mp_data = get_mp_data(mp_id) if mp_id else None
+                    has_api_data = mp_data is not None and any(data for data in mp_data.values() if data)
+
+                    status_text.text('Fetching Wikipedia data...')
+                    progress_bar.progress(60)
+
+                    # Check for cancellation
+                    if st.session_state.cancel_generation:
+                        st.warning("Generation cancelled.")
+                        return
+
+                    wiki_data = get_wiki_data(mp_name)
+                    has_wiki_data = wiki_data is not None
+                    wiki_url = get_wiki_url(mp_name) if has_wiki_data else None
+
+                    with st.expander("Debug Information"):
+                        st.subheader("Wikipedia Data")
+                        if wiki_data:
+                            st.text("Wikipedia content found")
+                            st.text(f"Length: {len(wiki_data)} characters")
+                            st.text(wiki_data[:500] + "...")
+                        else:
+                            st.text("No Wikipedia content found")
+
+                        if comments:
+                            st.subheader("User Comments")
+                            st.json(comments)
+
+                    # Combine all available information
+                    if not input_content and has_api_data:
+                        # If no user input, use formatted MP data as input content
+                        from mp_functions import format_mp_data
+                        input_content = format_mp_data(mp_data)
+
+                    # If still no content, use Wikipedia
+                    if not input_content and has_wiki_data:
+                        input_content = wiki_data
+
+                    # Check if we have any content
+                    if not input_content:
+                        st.error("No information found for this MP. Please check the name and try again.")
+                        return
+
+                    # Check for cancellation
+                    if st.session_state.cancel_generation:
+                        st.warning("Generation cancelled.")
+                        return
+
+                    # Generate biography
+                    status_text.text('Generating biography with Claude...')
+                    progress_bar.progress(80)
+
+                    # This step takes the longest, so check if cancelled
+                    if st.session_state.cancel_generation:
+                        st.warning("Generation cancelled.")
+                        return
+
+                    biography = generate_biography(mp_name, input_content, examples, verified_positions, comments)
+
+                    # Save biography
+                    status_text.text('Saving biography...')
+
+                    # Check for cancellation before saving
+                    if st.session_state.cancel_generation:
+                        st.warning("Generation cancelled.")
+                        return
+
+                    saved_path = save_biography(mp_name, biography,
+                                            has_pdf=False,
+                                            has_api_data=has_api_data,
+                                            has_wiki_data=has_wiki_data,
+                                            wiki_url=wiki_url)
+
+                    progress_bar.progress(100)
+                    status_text.text('Complete!')
+
+                    # Prepare file for download
+                    with open(saved_path, 'rb') as file:
+                        bio_bytes = file.read()
+
+                    st.success('Biography generated successfully!')
+                    st.download_button(
+                        label="Download Biography",
+                        data=bio_bytes,
+                        file_name=f"{mp_name}_biography.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
 
     with col2:
         st.header("Information")
