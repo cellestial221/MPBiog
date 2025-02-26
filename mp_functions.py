@@ -5,6 +5,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.shared import OxmlElement
 from docx.oxml.ns import qn  # Changed from ns to qn
 from datetime import datetime
+from bs4 import BeautifulSoup
 import docx.opc.constants
 import anthropic
 import os
@@ -457,86 +458,178 @@ def find_mp_in_wikipedia_list(mp_name):
         print(f"Error finding MP in Wikipedia list: {str(e)}")
         return None
 
+def get_mp_wiki_link(mp_name):
+    """
+    Find the direct Wikipedia link for an MP from the list of elected MPs.
+
+    Args:
+        mp_name (str): The name of the MP to search for
+
+    Returns:
+        str or None: The Wikipedia URL if found, None otherwise
+    """
+    try:
+        print(f"Searching for MP: {mp_name} in the 2024 elected MPs list")
+
+        # Get the list page
+        url = "https://en.wikipedia.org/wiki/List_of_MPs_elected_in_the_2024_United_Kingdom_general_election"
+        response = requests.get(url)
+        if response.status_code != 200:
+            print(f"Error accessing MPs list page: Status code {response.status_code}")
+            return None
+
+        # Parse HTML
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Normalize the MP name for more flexible matching
+        name_parts = mp_name.lower().split()
+        first_name = name_parts[0] if name_parts else ""
+        last_name = name_parts[-1] if len(name_parts) > 1 else name_parts[0] if name_parts else ""
+
+        # Find all MP links in the tables - typically they're in wikitable class tables
+        mp_links = []
+        tables = soup.find_all('table', class_='wikitable')
+
+        for table in tables:
+            for link in table.find_all('a'):
+                # Skip links with certain patterns
+                if any(x in link.get('href', '').lower() for x in [
+                    'constituency', 'party', 'election', 'parliament', 'list_of', 'category:'
+                ]):
+                    continue
+
+                link_text = link.get_text().strip().lower()
+
+                # Different matching strategies
+                if (mp_name.lower() in link_text or                           # Full name match
+                    (first_name in link_text and last_name in link_text) or   # First and last name in text
+                    last_name in link_text):                                  # Last name at minimum
+
+                    href = link.get('href')
+                    if href and href.startswith('/wiki/'):
+                        mp_links.append({
+                            'text': link.get_text().strip(),
+                            'url': f"https://en.wikipedia.org{href}",
+                            'exact_match': mp_name.lower() == link_text
+                        })
+
+        # Print all potential matches for debugging
+        print(f"Found {len(mp_links)} potential matches:")
+        for i, link in enumerate(mp_links):
+            print(f"{i+1}. {link['text']} - {link['url']}")
+
+        # First try exact matches
+        exact_matches = [link for link in mp_links if link['exact_match']]
+        if exact_matches:
+            print(f"Using exact match: {exact_matches[0]['text']} - {exact_matches[0]['url']}")
+            return exact_matches[0]['url']
+
+        # Then try best match (first match)
+        if mp_links:
+            print(f"Using best match: {mp_links[0]['text']} - {mp_links[0]['url']}")
+            return mp_links[0]['url']
+
+        print(f"No matches found for {mp_name}")
+        return None
+
+    except Exception as e:
+        print(f"Error finding MP Wikipedia link: {str(e)}")
+        return None
+
 def get_wiki_data(mp_name, max_chars=3500):
     """Get MP data from Wikipedia with length control"""
     try:
         print(f"\nAttempting to find Wikipedia data for: {mp_name}")
 
-        # First try to find the MP in the list of elected MPs
-        mp_page = find_mp_in_wikipedia_list(mp_name)
+        # Get the direct link
+        mp_wiki_url = get_mp_wiki_link(mp_name)
 
-        if mp_page:
-            print(f"Found MP in 2024 election list: {mp_page.title}")
-        else:
-            # Fall back to direct search if not found in the list
-            wiki = wikipediaapi.Wikipedia(
-                user_agent='MP_Biography_Generator (yourname@example.com)',
-                language='en'
-            )
+        if not mp_wiki_url:
+            print("Could not find MP in the 2024 elected MPs list")
+            return None
 
-            possible_titles = [
-                mp_name,
-                f"{mp_name} (politician)",
-                f"{mp_name} MP"
-            ]
+        # Use requests + BeautifulSoup for more control over content extraction
+        print(f"Fetching content from: {mp_wiki_url}")
+        response = requests.get(mp_wiki_url)
+        if response.status_code != 200:
+            print(f"Error accessing MP Wikipedia page: Status code {response.status_code}")
+            return None
 
-            for title in possible_titles:
-                print(f"Trying Wikipedia title: {title}")
-                page = wiki.page(title)
-                if page.exists():
-                    print(f"Found Wikipedia page with title: {title}")
-                    mp_page = page
+        # Parse HTML content
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Get the title to confirm we have the right page
+        title = soup.find('h1', id='firstHeading')
+        if title:
+            print(f"Page title: {title.get_text().strip()}")
+
+        # Get content
+        content_div = soup.find('div', class_='mw-parser-output')
+        if not content_div:
+            print("Could not find content on Wikipedia page")
+            return None
+
+        # Extract the introduction/summary (first paragraphs before first heading)
+        summary = ""
+        for p in content_div.find_all('p', recursive=False):
+            if p.text.strip():
+                summary += p.text.strip() + "\n\n"
+                # If we have a substantial summary, stop
+                if len(summary) > 200:
                     break
 
-        if mp_page and mp_page.exists():
-            # Get summary first
-            content = mp_page.summary
+        # Find all section headings and their content
+        sections = {}
+        current_section = None
+        section_content = []
 
-            # Get the sections we're interested in
-            important_sections = ['Early life', 'Education', 'Career', 'Personal life',
-                                 'Political career', 'Background', 'Parliamentary career']
+        for element in content_div.children:
+            # Check if this is a heading
+            if element.name in ['h2', 'h3'] and not element.get('class', [''])[0] == 'toc':
+                # Save previous section
+                if current_section and section_content:
+                    sections[current_section] = '\n'.join(section_content)
 
-            # Get first level sections up to max length
-            if len(content) < max_chars:
-                for section in mp_page.sections:
-                    section_title = section.title.lower()
+                # Start new section
+                current_section = element.get_text().strip()
+                if any(x in current_section for x in ['References', 'External links', 'See also', 'Notes']):
+                    current_section = None  # Skip these sections
+                section_content = []
 
-                    # Skip sections we usually don't want in MP bios
-                    if section_title in ['see also', 'references', 'external links', 'notes', 'bibliography']:
-                        continue
+            # Add content to current section
+            elif current_section and element.name == 'p' and element.text.strip():
+                section_content.append(element.text.strip())
 
-                    # Prioritize important sections
-                    should_include = False
-                    for important_title in important_sections:
-                        if important_title.lower() in section_title:
-                            should_include = True
-                            break
+        # Save final section
+        if current_section and section_content:
+            sections[current_section] = '\n'.join(section_content)
 
-                    # If this isn't an important section and we have other content, maybe skip
-                    if not should_include and len(content) > 1000:
-                        continue
+        # Combine summary and selected sections into final content
+        # Prioritize important biographical sections
+        content = summary
+        important_sections = [
+            'early life', 'education', 'career', 'personal life',
+            'political career', 'background', 'parliamentary career'
+        ]
 
-                    section_text = f"\n\n{section.title}\n{section.text}"
+        # First add important sections
+        for section_name, section_text in sections.items():
+            if any(imp_section in section_name.lower() for imp_section in important_sections):
+                if len(content) + len(section_name) + len(section_text) + 10 < max_chars:
+                    content += f"\n\n{section_name}\n{section_text}"
 
-                    # Check if adding this section would exceed max length
-                    if len(content + section_text) > max_chars:
-                        break
+        # If we still have room, add other sections
+        if len(content) < max_chars * 0.7:  # Only if we have used less than 70% of max
+            for section_name, section_text in sections.items():
+                if not any(imp_section in section_name.lower() for imp_section in important_sections):
+                    if len(content) + len(section_name) + len(section_text) + 10 < max_chars:
+                        content += f"\n\n{section_name}\n{section_text}"
 
-                    content += section_text
+        # Log summary of what we found
+        print(f"Retrieved {len(content)} characters of content")
+        print(f"Content preview: {content[:200]}...")
 
-            print("\nWikipedia content retrieved:")
-            print("-" * 50)
-            print(f"Page title: {mp_page.title}")
-            print(f"Length: {len(content)} characters")
-            print("Content preview (first 500 chars):")
-            print(content[:500])
-            print("...")
-            print("-" * 50)
-
-            return content
-
-        print("No Wikipedia page found")
-        return None
+        return content
 
     except Exception as e:
         print(f"Error fetching Wikipedia data: {str(e)}")
@@ -545,31 +638,7 @@ def get_wiki_data(mp_name, max_chars=3500):
 def get_wiki_url(mp_name):
     """Get Wikipedia URL for MP"""
     try:
-        # First try to find the MP in the 2024 election list
-        mp_page = find_mp_in_wikipedia_list(mp_name)
-
-        if mp_page:
-            return mp_page.fullurl
-
-        # Fall back to direct search if not found in the list
-        wiki = wikipediaapi.Wikipedia(
-            user_agent='MP_Biography_Generator (yourname@example.com)',
-            language='en'
-        )
-
-        possible_titles = [
-            mp_name,
-            f"{mp_name} (politician)",
-            f"{mp_name} MP"
-        ]
-
-        for title in possible_titles:
-            page = wiki.page(title)
-            if page.exists():
-                return page.fullurl
-
-        return None
-
+        return get_mp_wiki_link(mp_name)
     except Exception as e:
         print(f"Error getting Wikipedia URL: {str(e)}")
         return None
