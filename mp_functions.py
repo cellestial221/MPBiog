@@ -735,7 +735,8 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     if comments and len(comments) > 0:
         comments_text = "\n\nRELEVANT COMMENTS TO INCLUDE AT THE END OF THE BIOGRAPHY:\n"
         comments_text += "Please include a section at the end of the biography titled 'Relevant Comments'. "
-        comments_text += "Summarize each of these comments in a paragraph, including the date and creating a hyperlink with the text '(link)' to the URL provided. "
+        comments_text += "Format each comment as a bullet point (• ) item in a list. Do NOT include links or (link) text. "
+        comments_text += "Summarize each of these comments in a short paragraph, including the date. "
         comments_text += "Group similar comments together when appropriate. For dates, use British date format (day month year).\n\n"
 
         for i, comment in enumerate(comments):
@@ -773,11 +774,11 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     The biography should follow the exact same structure and sections as the examples, including:
 
     1. The MP's name and role as a title
-    2. Their party and constituency in parentheses on a seperate line
+    2. Their party and constituency in parentheses on a separate line
     3. A brief introduction paragraph with their current position and VERIFIED roles
-    4. A "Politics" section with a clear heading, this should be the chunkiest section
-    5. A "Background" section with a clear heading, focusing less on their politics and more on their life/career outside of politics
-    {comments_text and '6. A "Relevant Comments" section with a clear heading, summarizing the MP\'s comments/remarks as specified below' or ''}
+    4. A "Politics" section with a clear heading (NO hash symbols or markdown formatting)
+    5. A "Background" section with a clear heading (NO hash symbols or markdown formatting)
+    {comments_text and '6. A "Relevant Comments" section with a clear heading (NO hash symbols), with bulleted list items' or ''}
 
     Example biography for style reference:
     {examples}
@@ -792,7 +793,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     2. Use ONLY information from the provided input content and Wikipedia
     3. Rephrase and restructure the information - do not copy phrases directly
     4. Maintain the same professional tone and level of detail
-    5. Use clear section headers with proper spacing before and after
+    5. Use clear section headers with proper spacing before and after - DO NOT use any markdown formatting like # for headers
     6. Focus on the most significant aspects of their career and current role, be specific and detailed
     7. Organise information chronologically within each section
     8. Keep sentences fairly concise, factual, and clear
@@ -803,7 +804,8 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     13. Be sure to be VERY careful in being accurate with Committee names, memberships, and government roles if applicable
     14. If recent parliamentary contributions are provided, include a SHORT 1-2 sentence summary at the end of the Politics section
     15. Use the official synopsis where provided, incorporating its verified information naturally into the narrative
-    16. Do NOT include Date of Birth"""
+    16. Do NOT include Date of Birth
+    17. In the Relevant Comments section, format each item as a bullet point (• ) without any hyperlinks"""
 
     try:
         response = client.messages.create(
@@ -823,7 +825,6 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     except Exception as e:
         print(f"Error in biography generation: {str(e)}")
         raise
-
 
 
 def apply_heading_style(paragraph):
@@ -897,7 +898,6 @@ def save_biography(mp_name, content, has_pdf=False, has_api_data=False, has_wiki
 
     source_para.alignment = WD_PARAGRAPH_ALIGNMENT.LEFT
 
-
     # Try to add MP's portrait
     mp_id = get_mp_id(mp_name)
     if mp_id:
@@ -908,6 +908,11 @@ def save_biography(mp_name, content, has_pdf=False, has_api_data=False, has_wiki
 
     # Clean and process the content
     content = clean_text(content)
+
+    # Remove any accidental markdown formatting
+    content = content.replace('# ', '')
+    content = content.replace('## ', '')
+
     paragraphs = content.split('\n')
 
     # Process each paragraph
@@ -941,47 +946,17 @@ def save_biography(mp_name, content, has_pdf=False, has_api_data=False, has_wiki
                 run.font.weight = 400  # Regular weight
                 run.font.color.rgb = TEAL_COLOR
 
-            # Regular paragraphs - check for hyperlinks
+            # Regular paragraphs - no special handling for links
             else:
-                # Look for (link) pattern in the text
-                if "(link)" in para:
-                    parts = para.split("(link)")
-
-                    # Add the first part
-                    run = p.add_run(parts[0])
-                    run.font.name = 'Hanken Grotesk'
-                    run.font.size = Pt(10)
-                    run.font.weight = 300  # Light weight
-                    run.font.color.rgb = RGBColor(0, 0, 0)  # Black
-
-                    # Process remaining parts
-                    for j in range(1, len(parts)):
-                        # Find URL before this link reference
-                        url_match = re.search(r'https?://[^\s()]+', para)
-                        url = url_match.group(0) if url_match else "#"
-
-                        # Add the link
-                        create_hyperlink(p, "link", url)
-
-                        # Add any remaining text after the link
-                        if parts[j]:
-                            run = p.add_run(parts[j])
-                            run.font.name = 'Hanken Grotesk'
-                            run.font.size = Pt(10)
-                            run.font.weight = 300  # Light weight
-                            run.font.color.rgb = RGBColor(0, 0, 0)  # Black
-                else:
-                    # Regular paragraph without links
-                    run = p.add_run(para.strip())
-                    run.font.name = 'Hanken Grotesk'
-                    run.font.size = Pt(10)
-                    run.font.weight = 300  # Light weight
-                    run.font.color.rgb = RGBColor(0, 0, 0)  # Black
+                run = p.add_run(para.strip())
+                run.font.name = 'Hanken Grotesk'
+                run.font.size = Pt(10)
+                run.font.weight = 300  # Light weight
+                run.font.color.rgb = RGBColor(0, 0, 0)  # Black
 
     filename = f'new_bios/{mp_name}_biography.docx'
     doc.save(filename)
     return filename
-
 
 def main():
     # Check for API key

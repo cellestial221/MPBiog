@@ -77,43 +77,51 @@ def relevant_comments_section():
     """Create and handle the relevant comments section UI"""
     comments = []
 
-    # Container to hold all comment forms
-    comments_container = st.container()
-
-    # Use session state to track number of comment forms
+    # Initialize session state variables
+    if 'show_comments' not in st.session_state:
+        st.session_state.show_comments = False
     if 'comment_count' not in st.session_state:
         st.session_state.comment_count = 1
+
+    # Functions to handle state changes
+    def toggle_comments():
+        st.session_state.show_comments = not st.session_state.show_comments
+        # Reset comment count when toggling off
+        if not st.session_state.show_comments:
+            st.session_state.comment_count = 1
 
     def add_comment_form():
         st.session_state.comment_count += 1
 
-    # Button to add first comment
-    show_comments = st.checkbox("Add Relevant Comments")
+    def cancel_comments():
+        st.session_state.show_comments = False
+        st.session_state.comment_count = 1
 
-    if show_comments:
-        with comments_container:
+    # Button to toggle comments visibility
+    if not st.session_state.show_comments:
+        st.button("Add Relevant Comments", on_click=toggle_comments, key="add_comments")
+    else:
+        # Full width container for comments
+        with st.container():
             st.subheader("Relevant Comments")
-            st.write("Add comments or remarks made by the MP from various sources.")
+            st.write("Add comments or remarks made by the MP from various sources. These will appear as bullet points at the end of the biography.")
 
             # Create forms for each comment
             for i in range(st.session_state.comment_count):
-                with st.expander(f"Comment {i+1}", expanded=(i==0)):
-                    col1, col2 = st.columns([1, 2])
+                with st.expander(f"Comment {i+1}", expanded=(i == st.session_state.comment_count-1)):
+                    # Use full width for all elements
+                    comment_type = st.selectbox(
+                        "Source Type",
+                        options=[
+                            "Social Media Post",
+                            "Written Question",
+                            "Parliamentary Remarks",
+                            "Ministerial/Government Remarks"
+                        ],
+                        key=f"type_{i}"
+                    )
 
-                    with col1:
-                        comment_type = st.selectbox(
-                            "Source Type",
-                            options=[
-                                "Social Media Post",
-                                "Written Question",
-                                "Parliamentary Remarks",
-                                "Ministerial/Government Remarks"
-                            ],
-                            key=f"type_{i}"
-                        )
-
-                    with col2:
-                        comment_url = st.text_input("Source URL", key=f"url_{i}")
+                    comment_url = st.text_input("Source URL (Optional)", key=f"url_{i}")
 
                     comment_date = st.date_input(
                         "Date of Comment",
@@ -123,12 +131,12 @@ def relevant_comments_section():
 
                     comment_text = st.text_area(
                         "Comment Text",
-                        height=100,
+                        height=150,  # Increased height
                         key=f"text_{i}"
                     )
 
-                    # Only add to comments list if all fields are filled
-                    if comment_type and comment_url and comment_text:
+                    # Only add to comments list if text is filled
+                    if comment_text:
                         comments.append({
                             "type": comment_type,
                             "url": comment_url,
@@ -136,10 +144,16 @@ def relevant_comments_section():
                             "text": comment_text
                         })
 
-            # Button to add another comment form
-            st.button("Add Another Comment", on_click=add_comment_form)
+            # Buttons for managing comments
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.button("Add Another Comment", on_click=add_comment_form)
+            with col2:
+                st.button("Cancel", on_click=cancel_comments, type="secondary")
+            with col3:
+                st.button("Done Adding Comments", on_click=toggle_comments, type="primary")
 
-    return comments
+    return comments if st.session_state.show_comments else []
 
 def main():
     st.title("MP Biography Generator")
@@ -169,7 +183,7 @@ def main():
             help="Add any additional information about the MP you'd like to include in the biography."
         )
 
-        # Relevant comments section
+        # Relevant comments section - full width
         comments = relevant_comments_section()
 
         if st.button("Generate Biography") and mp_name:
