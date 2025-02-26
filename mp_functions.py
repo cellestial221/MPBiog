@@ -16,6 +16,78 @@ import io
 import wikipediaapi
 
 
+def search_perplexity(mp_name, issues, api_key):
+    """
+    Search for MP's statements on specific issues using Perplexity AI API
+
+    Args:
+        mp_name (str): The name of the MP
+        issues (str): Issues to search for
+        api_key (str): Perplexity API key
+
+    Returns:
+        str: Search results formatted for inclusion in the biography
+    """
+    import requests
+    import json
+
+    # Prepare the API request
+    url = "https://api.perplexity.ai/chat/completions"
+
+    # Format the query to search specifically on parliament.uk
+    query = f"Has {mp_name} MP ever said anything about {issues}? Find specific quotes, statements, or positions they have taken on this issue. Focus on parliamentary records, speeches, votes, or committee work. Be specific and accurate and concise, list out the remarks one by one. If no relevant remarks are found, please reply succinctly confirming so - no need for a long explanation. site:parliament.uk"
+
+    # Prepare the payload
+    payload = {
+        "model": "sonar-deep-research",
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a helpful research assistant. Search for accurate information about UK Members of Parliament and their positions on issues. Provide detailed citations to parliamentary records where possible."
+            },
+            {
+                "role": "user",
+                "content": query
+            }
+        ],
+        "max_tokens": 1000,
+        "temperature": 0.2,
+        "search_domain_filter": None,
+        "return_images": False,
+        "return_related_questions": False,
+        "stream": False
+    }
+
+    # Set up headers with the API key
+    headers = {
+        "accept": "application/json",
+        "content-type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+
+    # Make the API request
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()  # Raise exception for HTTP errors
+
+        # Parse the response
+        result = response.json()
+
+        # Extract the assistant's message content
+        if "choices" in result and len(result["choices"]) > 0:
+            content = result["choices"][0]["message"]["content"]
+            citations = result.get("citations", [])
+
+            # Format the content for inclusion in the biography
+            formatted_result = content
+
+            return formatted_result
+        else:
+            return f"No information found about {mp_name}'s statements on {issues}."
+
+    except Exception as e:
+        print(f"Error with Perplexity API: {str(e)}")
+        return f"Error searching for information: {str(e)}"
 
 
 def create_hyperlink(paragraph, text, url):
@@ -536,78 +608,6 @@ def get_mp_wiki_link(mp_name):
         print(f"Error finding MP Wikipedia link: {str(e)}")
         return None
 
-def search_perplexity(mp_name, issues, api_key):
-    """
-    Search for MP's statements on specific issues using Perplexity AI API
-
-    Args:
-        mp_name (str): The name of the MP
-        issues (str): Issues to search for
-        api_key (str): Perplexity API key
-
-    Returns:
-        str: Search results formatted for inclusion in the biography
-    """
-    import requests
-    import json
-
-    # Prepare the API request
-    url = "https://api.perplexity.ai/chat/completions"
-
-    # Format the query to search specifically on parliament.uk
-    query = f"Has {mp_name} MP ever said anything about {issues}? Find specific quotes, statements, or positions they have taken on this issue. Focus on parliamentary records, speeches, votes, or committee work. Be specific and accurate and concise, list out the remarks one by one. If no relevant remarks are found, please reply succinctly confirming so - no need for a long explanation. site:parliament.uk"
-
-    # Prepare the payload
-    payload = {
-        "model": "sonar-deep-research",
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a helpful research assistant. Search for accurate information about UK Members of Parliament and their positions on issues. Provide detailed citations to parliamentary records where possible."
-            },
-            {
-                "role": "user",
-                "content": query
-            }
-        ],
-        "max_tokens": 1000,
-        "temperature": 0.2,
-        "search_domain_filter": None,
-        "return_images": False,
-        "return_related_questions": False,
-        "stream": False
-    }
-
-    # Set up headers with the API key
-    headers = {
-        "accept": "application/json",
-        "content-type": "application/json",
-        "Authorization": f"Bearer {api_key}"
-    }
-
-    # Make the API request
-    try:
-        response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status()  # Raise exception for HTTP errors
-
-        # Parse the response
-        result = response.json()
-
-        # Extract the assistant's message content
-        if "choices" in result and len(result["choices"]) > 0:
-            content = result["choices"][0]["message"]["content"]
-            citations = result.get("citations", [])
-
-            # Format the content for inclusion in the biography
-            formatted_result = content
-
-            return formatted_result
-        else:
-            return f"No information found about {mp_name}'s statements on {issues}."
-
-    except Exception as e:
-        print(f"Error with Perplexity API: {str(e)}")
-        return f"Error searching for information: {str(e)}"
 
 def get_wiki_data(mp_name, max_chars=3500):
     """Get comprehensive MP data from Wikipedia with length control"""
