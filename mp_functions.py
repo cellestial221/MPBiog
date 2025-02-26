@@ -656,7 +656,7 @@ def get_wiki_url(mp_name):
         return None
 
 
-def generate_biography(mp_name, input_content, examples, verified_positions=None):
+def generate_biography(mp_name, input_content, examples, verified_positions=None, comments=None):
     # Validate and clean inputs
     if isinstance(input_content, list):
         input_content = ' '.join(str(x) for x in input_content)
@@ -683,7 +683,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
         # Create the prompt
     current_date = datetime.now().strftime('%Y-%m-%d')  # Get current date in YYYY-MM-DD format
 
-# Create verified positions text
+    # Create verified positions text
     verified_positions_text = "\nVERIFIED PARLIAMENTARY INFORMATION:\n"
 
     if verified_positions:
@@ -730,6 +730,31 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     else:
         verified_positions_text += "\nNo verified position data available. Do not include any committee memberships, government/opposition roles, or parliamentary activities in the biography.\n"
 
+    # Create comments section text if comments exist
+    comments_text = ""
+    if comments and len(comments) > 0:
+        comments_text = "\n\nRELEVANT COMMENTS TO INCLUDE AT THE END OF THE BIOGRAPHY:\n"
+        comments_text += "Please include a section at the end of the biography titled 'Relevant Comments'. "
+        comments_text += "Summarize each of these comments in a paragraph, including the date and creating a hyperlink with the text '(link)' to the URL provided. "
+        comments_text += "Group similar comments together when appropriate. For dates, use British date format (day month year).\n\n"
+
+        for i, comment in enumerate(comments):
+            comment_date = comment.get('date', '')
+            try:
+                # Convert YYYY-MM-DD to day Month YYYY
+                if comment_date:
+                    date_obj = datetime.strptime(comment_date, '%Y-%m-%d')
+                    comment_date = date_obj.strftime('%d %B %Y')
+            except:
+                # If date conversion fails, use as is
+                pass
+
+            comments_text += f"Comment {i+1}:\n"
+            comments_text += f"Type: {comment.get('type', '')}\n"
+            comments_text += f"Date: {comment_date}\n"
+            comments_text += f"URL: {comment.get('url', '')}\n"
+            comments_text += f"Text: {comment.get('text', '')}\n\n"
+
     prompt = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
 
     CRITICAL REQUIREMENTS:
@@ -752,12 +777,15 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     3. A brief introduction paragraph with their current position and VERIFIED roles
     4. A "Politics" section with a clear heading, this should be the chunkiest section
     5. A "Background" section with a clear heading, focusing less on their politics and more on their life/career outside of politics
+    {comments_text and '6. A "Relevant Comments" section with a clear heading, summarizing the MP\'s comments/remarks as specified below' or ''}
 
     Example biography for style reference:
     {examples}
 
     Information to use for the new biography:
     {input_content}
+
+    {comments_text}
 
     Important requirements:
     1. Match the exact formatting and style of the example, including the placement of newlines and section headers
@@ -795,6 +823,8 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     except Exception as e:
         print(f"Error in biography generation: {str(e)}")
         raise
+
+
 
 def apply_heading_style(paragraph):
     """Apply consistent styling to headings"""
@@ -896,7 +926,7 @@ def save_biography(mp_name, content, has_pdf=False, has_api_data=False, has_wiki
                 run.font.color.rgb = TEAL_COLOR
 
             # Party and constituency line
-            elif para.strip().startswith('(Labour'):
+            elif para.strip().startswith('(Labour') or para.strip().startswith('(Conservative'):
                 run = p.add_run(para.strip())
                 run.font.name = 'Hanken Grotesk'
                 run.font.size = Pt(10)
@@ -904,25 +934,53 @@ def save_biography(mp_name, content, has_pdf=False, has_api_data=False, has_wiki
                 run.font.color.rgb = RGBColor(0, 0, 0)  # Black
 
             # Section headers
-            elif para.strip() in ['Politics', 'Background']:
+            elif para.strip() in ['Politics', 'Background', 'Relevant Comments']:
                 run = p.add_run(para.strip())
                 run.font.name = 'Hanken Grotesk'
                 run.font.size = Pt(10)
                 run.font.weight = 400  # Regular weight
                 run.font.color.rgb = TEAL_COLOR
 
-            # Regular paragraphs
+            # Regular paragraphs - check for hyperlinks
             else:
-                run = p.add_run(para.strip())
-                run.font.name = 'Hanken Grotesk'
-                run.font.size = Pt(10)
-                run.font.weight = 300  # Light weight
-                run.font.color.rgb = RGBColor(0, 0, 0)  # Black
+                # Look for (link) pattern in the text
+                if "(link)" in para:
+                    parts = para.split("(link)")
+
+                    # Add the first part
+                    run = p.add_run(parts[0])
+                    run.font.name = 'Hanken Grotesk'
+                    run.font.size = Pt(10)
+                    run.font.weight = 300  # Light weight
+                    run.font.color.rgb = RGBColor(0, 0, 0)  # Black
+
+                    # Process remaining parts
+                    for j in range(1, len(parts)):
+                        # Find URL before this link reference
+                        url_match = re.search(r'https?://[^\s()]+', para)
+                        url = url_match.group(0) if url_match else "#"
+
+                        # Add the link
+                        create_hyperlink(p, "link", url)
+
+                        # Add any remaining text after the link
+                        if parts[j]:
+                            run = p.add_run(parts[j])
+                            run.font.name = 'Hanken Grotesk'
+                            run.font.size = Pt(10)
+                            run.font.weight = 300  # Light weight
+                            run.font.color.rgb = RGBColor(0, 0, 0)  # Black
+                else:
+                    # Regular paragraph without links
+                    run = p.add_run(para.strip())
+                    run.font.name = 'Hanken Grotesk'
+                    run.font.size = Pt(10)
+                    run.font.weight = 300  # Light weight
+                    run.font.color.rgb = RGBColor(0, 0, 0)  # Black
 
     filename = f'new_bios/{mp_name}_biography.docx'
     doc.save(filename)
     return filename
-
 
 
 def main():

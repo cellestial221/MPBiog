@@ -3,6 +3,8 @@ import os
 from docx import Document
 import io
 import asyncio
+import json
+from datetime import datetime
 from mp_functions import (
     read_example_bios,
     get_mp_id,
@@ -25,20 +27,20 @@ os.makedirs('example_bios', exist_ok=True)
 def display_verified_positions(verified_data):
     """Display verified Parliamentary positions in the sidebar"""
     st.sidebar.title("Verified Parliament Data")
-    
+
     if not verified_data:
         st.sidebar.warning("No verified data available from Parliament API")
         return
-        
+
     # Current Committees
     st.sidebar.subheader("Current Committee Memberships")
     if verified_data['current_committees']:
         for committee in verified_data['current_committees']:
-            st.sidebar.markdown(f"• **{committee['name']}**  \n" 
+            st.sidebar.markdown(f"• **{committee['name']}**  \n"
                               f"  Since: {committee['start_date']}")
     else:
         st.sidebar.info("No current committee memberships")
-        
+
     # Current Roles
     st.sidebar.subheader("Current Government/Opposition Roles")
     if verified_data['current_roles']:
@@ -47,7 +49,7 @@ def display_verified_positions(verified_data):
                               f"  Since: {role['start_date']}")
     else:
         st.sidebar.info("No current government/opposition roles")
-        
+
     # Historical Data (Collapsible)
     with st.sidebar.expander("View Historical Positions"):
         st.subheader("Past Committee Memberships")
@@ -57,7 +59,7 @@ def display_verified_positions(verified_data):
                           f"  {committee['start_date']} - {committee['end_date']}")
         else:
             st.info("No past committee memberships")
-            
+
         st.subheader("Past Government/Opposition Roles")
         if verified_data['historical_roles']:
             for role in verified_data['historical_roles']:
@@ -65,11 +67,79 @@ def display_verified_positions(verified_data):
                           f"  {role['start_date']} - {role['end_date']}")
         else:
             st.info("No past government/opposition roles")
-    
+
     # Debug Data (Collapsible)
     if verified_data.get('api_response'):
         with st.sidebar.expander("Debug: Raw API Data"):
             st.json(verified_data['api_response'])
+
+def relevant_comments_section():
+    """Create and handle the relevant comments section UI"""
+    comments = []
+
+    # Container to hold all comment forms
+    comments_container = st.container()
+
+    # Use session state to track number of comment forms
+    if 'comment_count' not in st.session_state:
+        st.session_state.comment_count = 1
+
+    def add_comment_form():
+        st.session_state.comment_count += 1
+
+    # Button to add first comment
+    show_comments = st.checkbox("Add Relevant Comments")
+
+    if show_comments:
+        with comments_container:
+            st.subheader("Relevant Comments")
+            st.write("Add comments or remarks made by the MP from various sources.")
+
+            # Create forms for each comment
+            for i in range(st.session_state.comment_count):
+                with st.expander(f"Comment {i+1}", expanded=(i==0)):
+                    col1, col2 = st.columns([1, 2])
+
+                    with col1:
+                        comment_type = st.selectbox(
+                            "Source Type",
+                            options=[
+                                "Social Media Post",
+                                "Written Question",
+                                "Parliamentary Remarks",
+                                "Ministerial/Government Remarks"
+                            ],
+                            key=f"type_{i}"
+                        )
+
+                    with col2:
+                        comment_url = st.text_input("Source URL", key=f"url_{i}")
+
+                    comment_date = st.date_input(
+                        "Date of Comment",
+                        value=datetime.now().date(),
+                        key=f"date_{i}"
+                    )
+
+                    comment_text = st.text_area(
+                        "Comment Text",
+                        height=100,
+                        key=f"text_{i}"
+                    )
+
+                    # Only add to comments list if all fields are filled
+                    if comment_type and comment_url and comment_text:
+                        comments.append({
+                            "type": comment_type,
+                            "url": comment_url,
+                            "date": comment_date.strftime("%Y-%m-%d"),
+                            "text": comment_text
+                        })
+
+            # Button to add another comment form
+            st.button("Add Another Comment", on_click=add_comment_form)
+
+    return comments
 
 def main():
     st.title("MP Biography Generator")
@@ -91,13 +161,16 @@ def main():
         # Input section
         st.header("Input")
         mp_name = st.text_input("Enter MP name:")
-        
-        # CHANGE 1: Replace PDF uploader with text area
+
+        # Text area for additional information
         user_input_text = st.text_area(
-            "Enter additional information about the MP (Optional):", 
-            height=250,
+            "Enter additional information about the MP (Optional):",
+            height=150,
             help="Add any additional information about the MP you'd like to include in the biography."
         )
+
+        # Relevant comments section
+        comments = relevant_comments_section()
 
         if st.button("Generate Biography") and mp_name:
             # Validate inputs
@@ -114,14 +187,14 @@ def main():
                 progress_bar.progress(10)
                 examples = read_example_bios()
 
-                # Use text input instead of PDF content
+                # Use text input
                 input_content = user_input_text if user_input_text else ""
                 has_user_input = bool(user_input_text.strip())
 
                 status_text.text('Fetching MP data...')
-                progress_bar.progress(40)
+                progress_bar.progress(30)
                 mp_id = get_mp_id(mp_name)
-                
+
                 # Get and display verified positions
                 verified_positions = None
                 if mp_id:
@@ -134,12 +207,12 @@ def main():
                         else:
                             st.error("No API response received")
                     display_verified_positions(verified_positions)
-                
+
                 mp_data = get_mp_data(mp_id) if mp_id else None
                 has_api_data = mp_data is not None and any(data for data in mp_data.values() if data)
 
                 status_text.text('Fetching Wikipedia data...')
-                progress_bar.progress(70)
+                progress_bar.progress(60)
                 wiki_data = get_wiki_data(mp_name)
                 has_wiki_data = wiki_data is not None
                 wiki_url = get_wiki_url(mp_name) if has_wiki_data else None
@@ -147,11 +220,16 @@ def main():
                 with st.expander("Debug Information"):
                     st.subheader("Wikipedia Data")
                     if wiki_data:
-                        st.text("Wikipedia content found:")
-                        st.text(wiki_data)
+                        st.text("Wikipedia content found")
+                        st.text(f"Length: {len(wiki_data)} characters")
+                        st.text(wiki_data[:500] + "...")
                     else:
                         st.text("No Wikipedia content found")
-                
+
+                    if comments:
+                        st.subheader("User Comments")
+                        st.json(comments)
+
                 # Combine all available information
                 if not input_content and has_api_data:
                     # If no user input, use formatted MP data as input content
@@ -169,13 +247,13 @@ def main():
 
                 # Generate biography
                 status_text.text('Generating biography...')
-                progress_bar.progress(90)
-                biography = generate_biography(mp_name, input_content, examples, verified_positions)
+                progress_bar.progress(80)
+                biography = generate_biography(mp_name, input_content, examples, verified_positions, comments)
 
                 # Save biography
                 status_text.text('Saving biography...')
                 saved_path = save_biography(mp_name, biography,
-                                        has_pdf=False,  # No PDF anymore
+                                        has_pdf=False,
                                         has_api_data=has_api_data,
                                         has_wiki_data=has_wiki_data,
                                         wiki_url=wiki_url)
@@ -205,6 +283,7 @@ def main():
         - Your optional input text about the MP
         - Parliament's API data (verified positions shown in sidebar)
         - Wikipedia information
+        - User-submitted relevant comments (optional)
 
         The biography will be generated using all available sources.
         """)
