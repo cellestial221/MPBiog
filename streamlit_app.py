@@ -15,7 +15,7 @@ from mp_functions import (
     generate_biography,
     save_biography,
     get_verified_positions,
-    search_perplexity  # Add this new import
+    search_perplexity
 )
 
 # Set page config
@@ -191,62 +191,20 @@ def main():
             height=150,
             help="Add any additional information about the MP you'd like to include in the biography."
         )
-        perplexity_col1, perplexity_col2 = st.columns([3, 1])
-        with perplexity_col1:
-            use_perplexity = st.checkbox("Search for MP's statements on specific issues using Perplexity AI",
-                                        help="This will use Perplexity AI to search the web for statements made by the MP on specific issues. Note: This may increase biography generation time.")
 
-        # Initialize variables
-        perplexity_results = None
-        perplexity_api_key = None
-        issues = None
+        # Add Perplexity search option
+        use_perplexity = st.checkbox("Search for MP's statements on specific issues using Perplexity AI",
+                                  help="This will use Perplexity AI to search the web for statements made by the MP on specific issues. Note: This may increase biography generation time.")
 
         # Display additional fields if checkbox is selected
+        issues = None
+        perplexity_api_key = None
         if use_perplexity:
             issues = st.text_input("Issues to search for (e.g., 'climate change, farming, immigration'):",
-                                  help="Specify topics you want to find the MP's statements on")
+                                help="Specify topics you want to find the MP's statements on")
 
             perplexity_api_key = st.text_input("Perplexity API Key:", type="password",
-                                             help="Enter your Perplexity API key for web search")
-
-        # Then, add this code inside the try-except block where you generate the biography,
-        # before the actual biography generation step (before the "Generating biography with Claude..." status update):
-
-        # If Perplexity search is enabled, perform the search
-        if use_perplexity and perplexity_api_key and issues:
-            status_text.text('Searching for MP statements on specified issues...')
-            progress_bar.progress(70)
-
-            # Check for cancellation
-            if st.session_state.cancel_generation:
-                st.warning("Generation cancelled.")
-                return
-
-            # Perform Perplexity search
-            perplexity_results = search_perplexity(mp_name, issues, perplexity_api_key)
-
-            # If there are results, create a comment to add to the list
-            if perplexity_results and "Error" not in perplexity_results:
-                # Create a new comment with today's date
-                perplexity_comment = {
-                    "type": "Perplexity AI Search Results",
-                    "url": "",
-                    "date": datetime.now().strftime("%Y-%m-%d"),
-                    "text": f"MP's positions on {issues}:\n\n{perplexity_results}"
-                }
-
-                # Add to comments if there are existing comments, otherwise create a new list
-                if comments:
-                    comments.append(perplexity_comment)
-                else:
-                    comments = [perplexity_comment]
-
-            # Display in debug section
-            with st.expander("Perplexity Search Results"):
-                if perplexity_results:
-                    st.write(perplexity_results)
-                else:
-                    st.write("No results found")
+                                           help="Enter your Perplexity API key for web search")
 
         # Relevant comments section - full width
         comments = relevant_comments_section()
@@ -289,7 +247,7 @@ def main():
                     has_user_input = bool(user_input_text.strip())
 
                     status_text.text('Fetching MP data...')
-                    progress_bar.progress(30)
+                    progress_bar.progress(25)
 
                     # Check for cancellation
                     if st.session_state.cancel_generation:
@@ -320,7 +278,7 @@ def main():
                     has_api_data = mp_data is not None and any(data for data in mp_data.values() if data)
 
                     status_text.text('Fetching Wikipedia data...')
-                    progress_bar.progress(60)
+                    progress_bar.progress(40)
 
                     # Check for cancellation
                     if st.session_state.cancel_generation:
@@ -330,6 +288,46 @@ def main():
                     wiki_data = get_wiki_data(mp_name)
                     has_wiki_data = wiki_data is not None
                     wiki_url = get_wiki_url(mp_name) if has_wiki_data else None
+
+                    # If Perplexity search is enabled, perform the search
+                    if use_perplexity and issues and perplexity_api_key:
+                        status_text.text('Searching for MP statements on specified issues...')
+                        progress_bar.progress(60)
+
+                        # Check for cancellation
+                        if st.session_state.cancel_generation:
+                            st.warning("Generation cancelled.")
+                            return
+
+                        try:
+                            # Perform Perplexity search
+                            perplexity_results = search_perplexity(mp_name, issues, perplexity_api_key)
+
+                            # If there are results, create a comment to add to the list
+                            if perplexity_results and "Error" not in perplexity_results:
+                                # Create a new comment with today's date
+                                perplexity_comment = {
+                                    "type": "Perplexity AI Search Results",
+                                    "url": "",
+                                    "date": datetime.now().strftime("%Y-%m-%d"),
+                                    "text": f"MP's positions on {issues}:\n\n{perplexity_results}"
+                                }
+
+                                # Add to comments if there are existing comments, otherwise create a new list
+                                if comments:
+                                    comments.append(perplexity_comment)
+                                else:
+                                    comments = [perplexity_comment]
+
+                                # Display in debug section
+                                with st.expander("Perplexity Search Results"):
+                                    if perplexity_results:
+                                        st.write(perplexity_results)
+                                    else:
+                                        st.write("No results found")
+                        except Exception as e:
+                            st.warning(f"Error performing Perplexity search: {str(e)}")
+                            # Continue with biography generation even if search fails
 
                     with st.expander("Debug Information"):
                         st.subheader("Wikipedia Data")
@@ -415,6 +413,7 @@ def main():
         - Parliament's API data (verified positions shown in sidebar)
         - Wikipedia information
         - User-submitted relevant comments (optional)
+        - Perplexity AI web search (optional)
 
         The biography will be generated using all available sources.
         """)
