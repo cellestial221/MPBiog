@@ -878,12 +878,13 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     14. If recent parliamentary contributions are provided, include a SHORT 1-2 sentence summary at the end of the Politics section
     15. Use the official synopsis where provided, incorporating its verified information naturally into the narrative
     16. Do NOT include Date of Birth
-    17. In the Relevant Comments section, format each item as a bullet point (• ) without any hyperlinks"""
+    17. In the Relevant Comments section, format each item as a bullet point (• )
+    18. Do not repeat information given in prior sections, so make sure the information is in the relevant section and not elsewhere"""
 
     try:
         response = client.messages.create(
             model="claude-3-7-sonnet-20250219",
-            max_tokens=1000,
+            max_tokens=3000,
             temperature=0.7,
             messages=[{
                 "role": "user",
