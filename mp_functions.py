@@ -35,7 +35,7 @@ def search_perplexity(mp_name, issues, api_key):
     url = "https://api.perplexity.ai/chat/completions"
 
     # Format the query to search specifically on parliament.uk
-    query = f"Has {mp_name} MP ever said anything about {issues}? Find specific quotes, statements, or positions they have taken on this issue. Focus on parliamentary records, speeches, votes, or committee work. Be specific and accurate and concise, list out the remarks one by one. If no relevant remarks are found, please reply succinctly confirming so - no need for a long explanation. site:parliament.uk"
+    query = f"Has {mp_name} MP ever said anything or done about {issues}? Find specific quotes, statements, actions, or positions they have taken on this issue. Focus on parliamentary records, speeches, votes, or committee work. Be specific and accurate and concise, list out the remarks one by one. If no relevant remarks are found, please reply succinctly confirming so - no need for a long explanation. site:parliament.uk"
 
     # Prepare the payload
     payload = {
