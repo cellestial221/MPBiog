@@ -5,3 +5,4 @@ anthropic
 PyPDF2
 wikipedia-api
 beautifulsoup4==4.12.2
+bcrypt

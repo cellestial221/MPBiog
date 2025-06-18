@@ -6,6 +6,7 @@ import asyncio
 import json
 import time
 from datetime import datetime
+import bcrypt
 from mp_functions import (
     read_example_bios,
     get_mp_id,
@@ -25,6 +26,33 @@ st.set_page_config(page_title="MP Biography Generator", layout="wide")
 os.makedirs('uploads', exist_ok=True)
 os.makedirs('new_bios', exist_ok=True)
 os.makedirs('example_bios', exist_ok=True)
+
+def check_password(username, password):
+    """Check if username and password are correct"""
+    try:
+        if username in st.secrets["credentials"]["usernames"]:
+            stored_password = st.secrets["credentials"]["usernames"][username]["password"]
+            result = bcrypt.checkpw(password.encode('utf-8'), stored_password.encode('utf-8'))
+            return result
+        else:
+            return False
+    except Exception as e:
+        st.error(f"Password check failed: {str(e)}")
+        return False
+
+def setup_api_keys():
+    """Setup API keys from secrets"""
+    try:
+        # Set API keys from secrets
+        os.environ['ANTHROPIC_API_KEY'] = st.secrets["api_keys"]["anthropic"]
+
+        # Return Perplexity API key for optional use
+        perplexity_key = st.secrets["api_keys"].get("perplexity", "")
+        return perplexity_key
+    except Exception as e:
+        st.error(f"API key setup failed: {str(e)}")
+        st.info("Please ensure your API keys are configured in secrets.toml")
+        st.stop()
 
 # Initialize session state for cancel mechanism
 if 'cancel_generation' not in st.session_state:
@@ -164,18 +192,9 @@ def cancel_generation():
     st.session_state.cancel_generation = True
     st.warning("Cancellation requested. The process will stop at the next checkpoint.")
 
-def main():
+def main_app(perplexity_api_key):
+    """Main application logic"""
     st.title("MP Biography Generator")
-
-    # Add sidebar for API key
-    with st.sidebar:
-        st.header("Settings")
-        api_key = st.text_input("Enter your Anthropic API key:", type="password")
-        if api_key:
-            os.environ['ANTHROPIC_API_KEY'] = api_key
-        else:
-            st.warning("Please enter your Anthropic API key to continue")
-            return
 
     # Main interface
     col1, col2 = st.columns(2)
@@ -192,19 +211,17 @@ def main():
             help="Add any additional information about the MP you'd like to include in the biography."
         )
 
-        # Add Perplexity search option
-        use_perplexity = st.checkbox("Search for MP's statements on specific issues using Perplexity AI",
-                                  help="This will use Perplexity AI to search the web for statements made by the MP on specific issues. Note: This may increase biography generation time.")
-
-        # Display additional fields if checkbox is selected
+        # Add Perplexity search option only if API key is available
+        use_perplexity = False
         issues = None
-        perplexity_api_key = None
-        if use_perplexity:
-            issues = st.text_input("Issues to search for (e.g., 'climate change, farming, immigration'):",
-                                help="Specify topics you want to find the MP's statements on")
+        if perplexity_api_key:
+            use_perplexity = st.checkbox("Search for MP's statements on specific issues using Perplexity AI",
+                                      help="This will use Perplexity AI to search the web for statements made by the MP on specific issues. Note: This may increase biography generation time.")
 
-            perplexity_api_key = st.text_input("Perplexity API Key:", type="password",
-                                           help="Enter your Perplexity API key for web search")
+            # Display additional fields if checkbox is selected
+            if use_perplexity:
+                issues = st.text_input("Issues to search for (e.g., 'climate change, farming, immigration'):",
+                                    help="Specify topics you want to find the MP's statements on")
 
         # Relevant comments section - full width
         comments = relevant_comments_section()
@@ -417,6 +434,64 @@ def main():
 
         The biography will be generated using all available sources.
         """)
+
+def main():
+    """Main entry point with custom authentication"""
+
+    # Initialize authentication state
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+
+    # Show login form if not authenticated
+    if not st.session_state.authenticated:
+        st.title("MP Biography Generator")
+        st.subheader("Please log in to continue")
+
+        with st.form("login_form"):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            login_button = st.form_submit_button("Login")
+
+            if login_button:
+                if check_password(username, password):
+                    # Set session state
+                    st.session_state.authenticated = True
+                    st.session_state.name = st.secrets["credentials"]["usernames"][username]["name"]
+                    st.session_state.username = username
+                    st.session_state.email = st.secrets["credentials"]["usernames"][username]["email"]
+                    st.success("Login successful!")
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
+
+        return
+
+    # User is authenticated - show main app
+    perplexity_api_key = setup_api_keys()
+
+    # Sidebar with user info and logout
+    with st.sidebar:
+        st.header("Account")
+        st.write(f"Welcome, {st.session_state.get('name', 'User')}")
+        st.write(f"Email: {st.session_state.get('email', 'N/A')}")
+
+        if st.button('Logout'):
+            st.session_state.authenticated = False
+            for key in ['name', 'username', 'email']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+
+        # API Status
+        st.header("API Status")
+        st.success("✅ Anthropic API: Configured")
+        if perplexity_api_key and perplexity_api_key != "your_perplexity_api_key_here":
+            st.success("✅ Perplexity API: Available")
+        else:
+            st.warning("⚠️ Perplexity API: Not configured")
+
+    # Run main app
+    main_app(perplexity_api_key)
 
 if __name__ == "__main__":
     main()
