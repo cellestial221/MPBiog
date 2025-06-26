@@ -179,8 +179,10 @@ def get_mp_id(mp_name):
         print(f"Error searching for MP: {str(e)}")
     return None
 
-async def get_verified_positions(mp_id):
-    """Get verified data from Parliament API"""
+def get_verified_positions(mp_id):
+    """Get verified data from Parliament API with debug output"""
+    print(f"DEBUG: Starting get_verified_positions for MP ID: {mp_id}")
+
     try:
         verified_data = {
             'current_committees': [],
@@ -192,17 +194,32 @@ async def get_verified_positions(mp_id):
             'api_response': None
         }
 
+        if not mp_id:
+            print("DEBUG: No MP ID provided")
+            return verified_data
+
+        print("DEBUG: About to fetch synopsis...")
         # Get synopsis
         synopsis_url = f"https://members-api.parliament.uk/api/Members/{mp_id}/Synopsis"
-        synopsis_response = requests.get(synopsis_url)
+        print(f"DEBUG: Calling synopsis URL: {synopsis_url}")
+        synopsis_response = requests.get(synopsis_url, timeout=10)
+        print(f"DEBUG: Synopsis response: {synopsis_response.status_code}")
+
         if synopsis_response.status_code == 200:
             synopsis_data = synopsis_response.json()
             if 'value' in synopsis_data:
                 verified_data['synopsis'] = synopsis_data['value']
+                print(f"DEBUG: Synopsis found: {len(verified_data['synopsis'])} characters")
+
+        print("DEBUG: Synopsis completed, moving to contributions...")
 
         # Get contribution summary
+        print("DEBUG: About to fetch contribution summary...")
         contributions_url = f"https://members-api.parliament.uk/api/Members/{mp_id}/ContributionSummary"
-        contributions_response = requests.get(contributions_url)
+        print(f"DEBUG: Calling contributions URL: {contributions_url}")
+        contributions_response = requests.get(contributions_url, timeout=10)
+        print(f"DEBUG: Contributions response: {contributions_response.status_code}")
+
         if contributions_response.status_code == 200:
             contributions_data = contributions_response.json()
             if 'items' in contributions_data and contributions_data['items']:
@@ -222,16 +239,25 @@ async def get_verified_positions(mp_id):
                     })
 
                 verified_data['recent_contributions'] = recent_contributions
+                print(f"DEBUG: Found {len(contributions_data['items'])} contribution items")
 
+        print("DEBUG: Contributions completed, moving to biography...")
+
+        # Get biography
         bio_url = f"https://members-api.parliament.uk/api/Members/{mp_id}/Biography"
-        bio_response = requests.get(bio_url)
+        print(f"DEBUG: Calling biography URL: {bio_url}")
+        bio_response = requests.get(bio_url, timeout=10)
+        print(f"DEBUG: Biography response: {bio_response.status_code}")
 
         if bio_response.status_code == 200:
+            print("DEBUG: Biography request successful, processing data...")
             bio_data = bio_response.json()['value']
             verified_data['api_response'] = bio_data
+            print(f"DEBUG: Biography data keys: {list(bio_data.keys())}")
 
             # Process committee memberships - they're under 'committeeMemberships' directly
             if bio_data.get('committeeMemberships'):
+                print(f"DEBUG: Found {len(bio_data['committeeMemberships'])} committee memberships")
                 for committee in bio_data['committeeMemberships']:
                     committee_info = {
                         'name': committee.get('name'),
@@ -247,6 +273,7 @@ async def get_verified_positions(mp_id):
 
             # Process government posts
             if bio_data.get('governmentPosts'):
+                print(f"DEBUG: Found {len(bio_data['governmentPosts'])} government posts")
                 for post in bio_data['governmentPosts']:
                     post_info = {
                         'name': post.get('name'),
@@ -261,6 +288,7 @@ async def get_verified_positions(mp_id):
 
             # Process opposition posts
             if bio_data.get('oppositionPosts'):
+                print(f"DEBUG: Found {len(bio_data['oppositionPosts'])} opposition posts")
                 for post in bio_data['oppositionPosts']:
                     post_info = {
                         'name': post.get('name'),
@@ -273,12 +301,14 @@ async def get_verified_positions(mp_id):
                     else:
                         verified_data['historical_roles'].append(post_info)
 
+        print(f"DEBUG: Function completed successfully. Found {len(verified_data['current_committees'])} current committees, {len(verified_data['current_roles'])} current roles")
         return verified_data
 
     except Exception as e:
-        print(f"Error fetching verified positions: {str(e)}")
+        print(f"DEBUG: Error in get_verified_positions: {str(e)}")
+        import traceback
+        print(f"DEBUG: Traceback: {traceback.format_exc()}")
         return verified_data
-
 
 def get_mp_portrait(mp_id):
     """Get MP's thumbnail image"""
