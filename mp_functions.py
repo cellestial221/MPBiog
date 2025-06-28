@@ -836,11 +836,14 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
         verified_positions_text += "\nNo verified position data available. Do not include any committee memberships, government/opposition roles, or parliamentary activities in the biography.\n"
 
     # Create comments section text if comments exist
+    # In the generate_biography function, find the comments_text section and replace it with this:
+
+    # Create comments section text if comments exist
     comments_text = ""
     if comments and len(comments) > 0:
         comments_text = "\n\nRELEVANT COMMENTS TO INCLUDE AT THE END OF THE BIOGRAPHY:\n"
         comments_text += "Please include a section at the end of the biography titled 'Relevant Comments'. "
-        comments_text += "Format each comment as a bullet point (• ) item in a list. Do NOT include links or (link) text. "
+        comments_text += "Format each comment as a bullet point (• ) item in a list. "
         comments_text += "Summarize each of these comments in a short paragraph, including the date. "
         comments_text += "Group similar comments together when appropriate. For dates, use British date format (day month year).\n\n"
 
@@ -1084,7 +1087,7 @@ def apply_body_style(paragraph):
         run.font.size = Pt(11)
     paragraph.space_after = Pt(6)
 
-def save_biography(mp_name, content, has_pdf=False, has_api_data=False, has_wiki_data=False, wiki_url=None):
+def save_biography(mp_name, content, comments=None, has_pdf=False, has_api_data=False, has_wiki_data=False, wiki_url=None):
     doc = Document()
 
     # Define colors
@@ -1154,7 +1157,18 @@ def save_biography(mp_name, content, has_pdf=False, has_api_data=False, has_wiki
     content = content.replace('# ', '')
     content = content.replace('## ', '')
 
+    # Create a list of comments with URLs for easier matching
+    url_comments = []
+    if comments:
+        for comment in comments:
+            if comment.get('url'):
+                url_comments.append(comment)
+
+    print(f"DEBUG: Found {len(url_comments)} comments with URLs")
+
     paragraphs = content.split('\n')
+    in_comments_section = False
+    bullet_point_index = 0  # Track which bullet point we're on
 
     # Process each paragraph
     for i in range(len(paragraphs)):
@@ -1162,6 +1176,11 @@ def save_biography(mp_name, content, has_pdf=False, has_api_data=False, has_wiki
 
         if para:
             p = doc.add_paragraph()
+
+            # Check if we're entering the Relevant Comments section
+            if para.strip() == 'Relevant Comments':
+                in_comments_section = True
+                print("DEBUG: Entered Relevant Comments section")
 
             # Title (first paragraph)
             if i == 0:
@@ -1187,7 +1206,76 @@ def save_biography(mp_name, content, has_pdf=False, has_api_data=False, has_wiki
                 run.font.weight = 400  # Regular weight
                 run.font.color.rgb = TEAL_COLOR
 
-            # Regular paragraphs - no special handling for links
+            # Handle comment bullet points - IMPROVED MATCHING
+            elif in_comments_section and para.strip().startswith('•'):
+                print(f"DEBUG: Processing bullet point {bullet_point_index + 1}: {para[:50]}...")
+
+                # Add the main bullet point text
+                run = p.add_run(para.strip())
+                run.font.name = 'Hanken Grotesk'
+                run.font.size = Pt(10)
+                run.font.weight = 300  # Light weight
+                run.font.color.rgb = RGBColor(0, 0, 0)  # Black
+
+                # Try to match this bullet point to a comment with URL
+                comment_url = None
+
+                # Strategy 1: Match by index (most reliable)
+                if bullet_point_index < len(url_comments):
+                    comment_url = url_comments[bullet_point_index]['url']
+                    print(f"DEBUG: Matched by index to URL: {comment_url}")
+
+                # Strategy 2: If index matching fails, try content matching
+                if not comment_url:
+                    for comment in url_comments:
+                        # Try multiple matching approaches
+                        comment_text = comment['text'].lower()
+                        para_text = para.lower()
+
+                        # Check for date matches
+                        comment_date = comment.get('date', '')
+                        if comment_date and comment_date in para_text:
+                            comment_url = comment['url']
+                            print(f"DEBUG: Matched by date: {comment_date}")
+                            break
+
+                        # Check for debate title matches
+                        if 'debate' in comment_text and 'debate' in para_text:
+                            # Extract potential debate names
+                            comment_words = set(comment_text.split())
+                            para_words = set(para_text.split())
+                            common_words = comment_words.intersection(para_words)
+                            if len(common_words) > 3:  # Threshold for similarity
+                                comment_url = comment['url']
+                                print(f"DEBUG: Matched by content similarity")
+                                break
+
+                # Add the hyperlink if we found a URL
+                if comment_url:
+                    print(f"DEBUG: Adding link: {comment_url}")
+
+                    # Add space and opening parenthesis
+                    run = p.add_run(' (')
+                    run.font.name = 'Hanken Grotesk'
+                    run.font.size = Pt(10)
+                    run.font.weight = 300
+                    run.font.color.rgb = RGBColor(0, 0, 0)
+
+                    # Add the hyperlink
+                    create_hyperlink(p, 'link', comment_url)
+
+                    # Add closing parenthesis
+                    run = p.add_run(')')
+                    run.font.name = 'Hanken Grotesk'
+                    run.font.size = Pt(10)
+                    run.font.weight = 300
+                    run.font.color.rgb = RGBColor(0, 0, 0)
+                else:
+                    print(f"DEBUG: No URL found for bullet point {bullet_point_index + 1}")
+
+                bullet_point_index += 1
+
+            # Regular paragraphs
             else:
                 run = p.add_run(para.strip())
                 run.font.name = 'Hanken Grotesk'
@@ -1198,6 +1286,7 @@ def save_biography(mp_name, content, has_pdf=False, has_api_data=False, has_wiki
     filename = f'new_bios/{mp_name}_biography.docx'
     doc.save(filename)
     return filename
+
 
 def main():
     # Check for API key
