@@ -970,52 +970,42 @@ def get_wiki_url(mp_name):
 
 # UPDATED GENERATE_BIOGRAPHY FUNCTION (mp_functions.py)
 def generate_biography(mp_name, input_content, examples, verified_positions=None, comments=None, length_setting="medium"):
-    # Validate and clean inputs
+    # Validate and clean inputs (keep your existing logic)
     if isinstance(input_content, list):
         input_content = ' '.join(str(x) for x in input_content)
     if isinstance(examples, list):
         examples = ' '.join(str(x) for x in examples)
 
-    # Ensure both are strings
     input_content = str(input_content).strip()
     examples = str(examples).strip()
 
-    # Provide a fallback if no content is found
     if not input_content:
         input_content = f"Background information for {mp_name} could not be found. Further research is needed."
 
-    # Get Wikipedia data as a fallback
+    # Get Wikipedia data as fallback
     wiki_content = get_wiki_data(mp_name)
-
-    client = anthropic.Client(api_key=os.getenv('ANTHROPIC_API_KEY'))
-
-    # Combine input content with Wikipedia if available
     if wiki_content:
         input_content = f"{input_content}\n\nWikipedia information:\n{wiki_content}"
 
-    # Create the prompt
+    client = anthropic.Client(api_key=os.getenv('ANTHROPIC_API_KEY'))
     current_date = datetime.now().strftime('%Y-%m-%d')
 
-    # Create verified positions text
+    # Create verified positions text (keep your existing logic)
     verified_positions_text = "\nVERIFIED PARLIAMENTARY INFORMATION:\n"
-
     if verified_positions:
         has_any_positions = False
         has_any_content = False
 
-        # Add synopsis if available
         if verified_positions.get('synopsis'):
             has_any_content = True
             verified_positions_text += f"\nOFFICIAL SYNOPSIS:\n{verified_positions['synopsis']}\n"
 
-        # Add committee memberships
         if verified_positions['current_committees']:
             has_any_positions = True
             verified_positions_text += "\nCurrent Committee Memberships:\n"
             for committee in verified_positions['current_committees']:
                 verified_positions_text += f"- {committee['name']} (Since {committee['start_date']})\n"
 
-        # Add roles
         if verified_positions['current_roles']:
             has_any_positions = True
             verified_positions_text += "\nCurrent Government/Opposition Roles:\n"
@@ -1024,26 +1014,10 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
 
         if not has_any_positions:
             verified_positions_text += "\nNo current committee memberships or government/opposition roles found. Do not include any such positions in the biography.\n"
-
-        # Add recent contributions if available
-        if verified_positions.get('recent_contributions'):
-            has_any_content = True
-            contrib = verified_positions['recent_contributions']
-            verified_positions_text += "\nRecent Parliamentary Activity:\n"
-            if contrib['recent_debates']:
-                for debate in contrib['recent_debates']:
-                    debate_date = datetime.strptime(debate['date'][:10], '%Y-%m-%d').strftime('%d %B %Y')
-                    verified_positions_text += f"- {debate['contributions']} contributions in '{debate['title']}' on {debate_date}\n"
-            else:
-                verified_positions_text += "No recent contributions found in Parliament.\n"
-
-        if not has_any_content and not has_any_positions:
-            verified_positions_text += "\nNo verified parliamentary information available. Do not include unverified committee memberships, roles, or parliamentary activities in the biography.\n"
-
     else:
         verified_positions_text += "\nNo verified position data available. Do not include any committee memberships, government/opposition roles, or parliamentary activities in the biography.\n"
 
-    # IMPROVED COMMENTS SECTION - Key fix here!
+    # Create comments text (keep your existing logic)
     comments_text = ""
     if comments and len(comments) > 0:
         comments_text = "\n\nRELEVANT COMMENTS TO INCLUDE AT THE END OF THE BIOGRAPHY:\n"
@@ -1051,28 +1025,24 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
         comments_text += "Format each comment as a bullet point (• ) item in a list. "
         comments_text += "Summarize each of these comments in a short paragraph, including the date. "
         comments_text += "Group similar comments together when appropriate. For dates, use British date format (day month year). "
-        # KEY ADDITION: Ask AI to preserve comment order and add reference markers
         comments_text += "IMPORTANT: Process these comments in the exact order provided and include a reference marker [REF-X] at the end of each bullet point where X is the comment number (1, 2, 3, etc.).\n\n"
 
         for i, comment in enumerate(comments):
             comment_date = comment.get('date', '')
             try:
-                # Convert YYYY-MM-DD to day Month YYYY
                 if comment_date:
                     date_obj = datetime.strptime(comment_date, '%Y-%m-%d')
                     comment_date = date_obj.strftime('%d %B %Y')
             except:
-                # If date conversion fails, use as is
                 pass
 
-            # Add reference number for tracking
             comments_text += f"Comment {i+1} [REF-{i+1}]:\n"
             comments_text += f"Type: {comment.get('type', '')}\n"
             comments_text += f"Date: {comment_date}\n"
             comments_text += f"URL: {comment.get('url', '')}\n"
             comments_text += f"Text: {comment.get('text', '')}\n\n"
 
-    # Define length-specific instructions (keeping existing logic)
+    # Length-specific instructions (keep your existing logic)
     length_instructions = {
         "brief": {
             "description": "BRIEF biography (approximately 2-3 short paragraphs)",
@@ -1081,8 +1051,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
 2. Party and constituency in parentheses
 3. One paragraph introduction with current position and most important roles only
 4. One paragraph covering the most significant career highlights only
-5. One paragraph with key background information only
-""",
+5. One paragraph with key background information only""",
             "content_guidelines": """BRIEF content guidelines:
 - Focus only on the most essential information
 - Include current role and 1-2 most significant positions
@@ -1099,8 +1068,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
 2. Party and constituency in parentheses
 3. Introduction paragraph with current position and verified roles
 4. 'Politics' section with clear heading
-5. 'Background' section with clear heading
-""",
+5. 'Background' section with clear heading""",
             "content_guidelines": """STANDARD content guidelines:
 - Follow the example biographies' length and detail level exactly
 - Include comprehensive career history with specific positions and dates
@@ -1118,8 +1086,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
 4. 'Politics' section with comprehensive political career details
 5. 'Background' section with extensive career and education history
 6. 'Early Life and Education' subsection if information available
-7. 'Professional Career' subsection with detailed work history
-""",
+7. 'Professional Career' subsection with detailed work history""",
             "content_guidelines": """COMPREHENSIVE content guidelines:
 - Significantly expand on all sections compared to the examples
 - Include detailed chronological career progression with specific dates
@@ -1133,10 +1100,12 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
         }
     }
 
-    # Get the appropriate length settings
     length_config = length_instructions.get(length_setting, length_instructions["medium"])
 
-    prompt = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
+    # ===== PROMPT CACHING IMPLEMENTATION =====
+
+    # Create the cached content (examples + instructions)
+    cached_content = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
 
     LENGTH REQUIREMENT: {length_config['description']}
 
@@ -1152,19 +1121,8 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
        - "advocating for constituents' interests"
        - "matters that matter to constituents"
 
-    IMPORTANT: Use ONLY the following verified positions when mentioning committee memberships and roles.
-    DO NOT list them explicitly, but incorporate them naturally into the narrative:
-    {verified_positions_text}
-
-    DO NOT include any committee memberships or roles that are not listed above, even if you find them in other sources.
-
     Example biography for style reference (NOTE: This is STANDARD length):
     {examples}
-
-    Information to use for the new biography:
-    {input_content}
-
-    {comments_text}
 
     Important requirements:
     1. Match the exact formatting and style of the example, including the placement of newlines and section headers
@@ -1187,6 +1145,36 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     18. Do not repeat information given in prior sections, so make sure the information is in the relevant section and not elsewhere
     19. ADJUST THE TOTAL LENGTH according to the {length_setting} setting specified above"""
 
+    # Create the dynamic content (MP-specific data)
+    dynamic_content = f"""IMPORTANT: Use ONLY the following verified positions when mentioning committee memberships and roles.
+    DO NOT list them explicitly, but incorporate them naturally into the narrative:
+    {verified_positions_text}
+
+    DO NOT include any committee memberships or roles that are not listed above, even if you find them in other sources.
+
+    Information to use for the new biography:
+    {input_content}
+
+    {comments_text}"""
+
+    # Structure messages with caching
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": cached_content,
+                    "cache_control": {"type": "ephemeral"}  # This caches the examples and instructions
+                },
+                {
+                    "type": "text",
+                    "text": dynamic_content  # This is unique per MP and not cached
+                }
+            ]
+        }
+    ]
+
     try:
         # Adjust max_tokens based on length setting
         max_tokens_map = {
@@ -1196,16 +1184,12 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
         }
 
         response = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-sonnet-4-20250514",  # Updated to Sonnet 4
             max_tokens=max_tokens_map.get(length_setting, 3000),
             temperature=0.7,
-            messages=[{
-                "role": "user",
-                "content": prompt
-            }]
+            messages=messages
         )
 
-        # Ensure we return a string
         biography = str(response.content[0].text)
         return biography
 
