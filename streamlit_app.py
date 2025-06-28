@@ -239,6 +239,63 @@ def inject_custom_css():
         padding-top: 1rem;
     }
 
+    /* Add these styles to your existing inject_custom_css() function */
+
+    /* FIX FOR RED BORDER - Target the root input element */
+    div[data-testid="stTextInputRootElement"] {
+        border: 2px solid #e6e9ef !important;
+        border-radius: 8px !important;
+        transition: border-color 0.2s ease !important;
+        background-color: white !important;
+    }
+
+    /* Focus state for the root element */
+    div[data-testid="stTextInputRootElement"]:focus-within {
+        border-color: #00A199 !important;
+        box-shadow: 0 0 0 3px rgba(0, 161, 153, 0.1) !important;
+    }
+
+    /* Also target any error/invalid states */
+    div[data-testid="stTextInputRootElement"][aria-invalid="true"] {
+        border-color: #00A199 !important; /* Override red with your teal */
+    }
+
+    /* Target the inner input container as well */
+    div[data-baseweb="base-input"] {
+        border: none !important;
+        background: transparent !important;
+    }
+
+    /* Ensure the actual input field has no border */
+    .stTextInput input {
+        border: none !important;
+        outline: none !important;
+        background: transparent !important;
+        padding: 0.75rem !important;
+        font-size: 1rem !important;
+        width: 100% !important;
+    }
+
+    /* Additional specificity for stubborn Streamlit styles */
+    .stTextInput > div > div[data-testid="stTextInputRootElement"] {
+        border: 2px solid #e6e9ef !important;
+        border-radius: 8px !important;
+    }
+
+    .stTextInput > div > div[data-testid="stTextInputRootElement"]:focus-within {
+        border-color: #00A199 !important;
+        box-shadow: 0 0 0 3px rgba(0, 161, 153, 0.1) !important;
+    }
+
+    /* Force override any error states */
+    .stTextInput [class*="st-b"]:not([class*="st-bu"]):not([class*="st-bv"]) {
+        border-color: #e6e9ef !important;
+    }
+
+    .stTextInput [class*="st-b"]:not([class*="st-bu"]):not([class*="st-bv"]):focus-within {
+        border-color: #00A199 !important;
+    }
+
     </style>
     """, unsafe_allow_html=True)# Replace the test_hansard_api() function with this simplified version:
 #
