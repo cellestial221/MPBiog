@@ -11,6 +11,7 @@ import requests
 from difflib import SequenceMatcher
 from functools import lru_cache
 import anthropic
+import base64
 from mp_functions import (
     read_example_bios,
     get_mp_id,
@@ -30,6 +31,15 @@ st.set_page_config(page_title="MP Biography Generator", layout="wide")
 os.makedirs('uploads', exist_ok=True)
 os.makedirs('new_bios', exist_ok=True)
 os.makedirs('example_bios', exist_ok=True)
+
+
+def get_logo_base64(image_path):
+    """Convert logo image to base64 string"""
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except FileNotFoundError:
+        return None
 
 def inject_custom_css():
     """Inject custom CSS for professional branding - FIXED BUTTON SELECTORS"""
@@ -241,82 +251,92 @@ def inject_custom_css():
 
     /* Add these styles to your existing inject_custom_css() function */
 
-    /* FIX FOR RED BORDER - Target the root input element */
-    div[data-testid="stTextInputRootElement"] {
+    /* TARGETED FIX FOR DOUBLE BORDER ISSUE */
+
+    /* Keep your original input styling but target more specifically */
+    .stTextInput > div > div > input {
         border: 2px solid #e6e9ef !important;
         border-radius: 8px !important;
+        padding: 0.75rem !important;
+        font-size: 1rem !important;
         transition: border-color 0.2s ease !important;
-        background-color: white !important;
+        background: white !important;
     }
 
-    /* Focus state for the root element */
-    div[data-testid="stTextInputRootElement"]:focus-within {
+    /* Hide Streamlit form helper text */
+    div[data-testid="InputInstructions"],
+    div[class*="InputInstructions"],
+    .stTextInput [class*="helper"],
+    .stTextInput [class*="Helper"] {
+        display: none !important;
+    }
+
+    .stTextInput > div > div > input:focus {
         border-color: #00A199 !important;
         box-shadow: 0 0 0 3px rgba(0, 161, 153, 0.1) !important;
+        outline: none !important;
     }
 
-    /* Also target any error/invalid states */
-    div[data-testid="stTextInputRootElement"][aria-invalid="true"] {
-        border-color: #00A199 !important; /* Override red with your teal */
+    /* REMOVE border from the root element to prevent double border */
+    div[data-testid="stTextInputRootElement"] {
+        border: none !important;
+        background: transparent !important;
     }
 
-    /* Target the inner input container as well */
+    /* Remove border from base input container */
     div[data-baseweb="base-input"] {
         border: none !important;
         background: transparent !important;
     }
 
-    /* Ensure the actual input field has no border */
-    .stTextInput input {
-        border: none !important;
-        outline: none !important;
-        background: transparent !important;
-        padding: 0.75rem !important;
-        font-size: 1rem !important;
-        width: 100% !important;
+    /* Override any error states */
+    div[data-testid="stTextInputRootElement"][aria-invalid="true"] {
+        border: none !important; /* Remove this border completely */
     }
 
-    /* Additional specificity for stubborn Streamlit styles */
+    /* Remove the conflicting styles */
     .stTextInput > div > div[data-testid="stTextInputRootElement"] {
-        border: 2px solid #e6e9ef !important;
-        border-radius: 8px !important;
+        border: none !important;
     }
 
     .stTextInput > div > div[data-testid="stTextInputRootElement"]:focus-within {
-        border-color: #00A199 !important;
-        box-shadow: 0 0 0 3px rgba(0, 161, 153, 0.1) !important;
-    }
-
-    /* Force override any error states */
-    .stTextInput [class*="st-b"]:not([class*="st-bu"]):not([class*="st-bv"]) {
-        border-color: #e6e9ef !important;
-    }
-
-    .stTextInput [class*="st-b"]:not([class*="st-bu"]):not([class*="st-bv"]):focus-within {
-        border-color: #00A199 !important;
+        border: none !important;
+        box-shadow: none !important;
     }
 
     </style>
     """, unsafe_allow_html=True)# Replace the test_hansard_api() function with this simplified version:
 #
+
 def styled_login_page():
-    """Complete replacement for the login section"""
+    """Complete replacement for the login section with restructured layout"""
     inject_custom_css()
+
+    # Get logo as base64
+    logo_base64 = get_logo_base64("logo.png")  # Replace with your logo filename
+
+    # Create logo HTML - either image or fallback
+    if logo_base64:
+        logo_html = f'<img src="data:image/png;base64,{logo_base64}" style="width: 50px; height: 56px; border-radius: 0px;" alt="Logo">'
+    else:
+        logo_html = '<div class="login-logo">YOUR<br>LOGO</div>'
 
     # Center the login form
     col1, col2, col3 = st.columns([1, 2, 1])
 
     with col2:
-        st.markdown("""
-        <div class="login-container">
-            <div class="login-header">
-                <div class="login-logo">YOUR<br>LOGO</div>
-                <div class="login-title">MP Biography Generator</div>
-                <div class="login-subtitle">Please log in to continue</div>
+        # Combined header section (logo + title) - clean HTML
+        st.markdown(f"""
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <div style="width: 70px; height: 70px; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 1px solid #e6e9ef;">
+                {logo_html}
             </div>
+            <h1 style="color: #224347; font-size: 1.5rem; font-weight: 600; margin: 0 0 0.5rem 0; font-family: 'Inter', sans-serif;">MP Biography Generator</h1>
+            <p style="color: #6c757d; font-size: 0.95rem; margin: 0;">Please log in to continue</p>
         </div>
         """, unsafe_allow_html=True)
 
+        # Simple login form without custom container
         with st.form("login_form"):
             st.markdown("### Login")
             username = st.text_input("Username", placeholder="Enter your username")
