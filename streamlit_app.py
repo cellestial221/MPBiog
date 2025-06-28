@@ -261,6 +261,7 @@ def inject_custom_css():
         font-size: 1rem !important;
         transition: border-color 0.2s ease !important;
         background: white !important;
+        color: #333333 !important;  /* Add this line for dark text */
     }
 
     /* Hide Streamlit form helper text */
