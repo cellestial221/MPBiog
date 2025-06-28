@@ -31,11 +31,251 @@ os.makedirs('uploads', exist_ok=True)
 os.makedirs('new_bios', exist_ok=True)
 os.makedirs('example_bios', exist_ok=True)
 
-# Add this function near the top of streamlit_app.py, after your imports and before your other functions:
+def inject_custom_css():
+    """Inject custom CSS for professional branding - FIXED BUTTON SELECTORS"""
+    st.markdown("""
+    <style>
+    /* Import better font */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-# Add this function near the top of streamlit_app.py, after your imports and before your other functions:
+    /* Global styling */
+    .stApp {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
 
-# Replace the test_hansard_api() function with this simplified version:
+    /* TARGET FORM SUBMIT BUTTONS SPECIFICALLY */
+    button[kind="primaryFormSubmit"] {
+        background: linear-gradient(90deg, #224347, #00A199) !important;
+        color: white !important;
+        border: 1px solid #00A199 !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 1.5rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        transition: all 0.2s ease !important;
+        width: 100% !important;
+        min-height: 2.5rem !important;
+        box-shadow: 0 2px 4px rgba(34, 67, 71, 0.2) !important;
+    }
+
+    button[kind="primaryFormSubmit"]:hover {
+        background: linear-gradient(90deg, #1a3437, #008b85) !important;
+        border-color: #008b85 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 8px rgba(34, 67, 71, 0.3) !important;
+    }
+
+    button[kind="primaryFormSubmit"]:active {
+        transform: translateY(0px) !important;
+        box-shadow: 0 2px 4px rgba(34, 67, 71, 0.2) !important;
+    }
+
+    /* TARGET REGULAR BUTTONS */
+    div.stButton > button:first-child {
+        background: linear-gradient(90deg, #224347, #00A199) !important;
+        color: white !important;
+        border: 1px solid #00A199 !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 1.5rem !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        transition: all 0.2s ease !important;
+        width: 100% !important;
+        margin-bottom: 0.5rem !important;
+        box-shadow: 0 2px 4px rgba(34, 67, 71, 0.2) !important;
+    }
+
+    div.stButton > button:first-child:hover {
+        background: linear-gradient(90deg, #1a3437, #008b85) !important;
+        border-color: #008b85 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 8px rgba(34, 67, 71, 0.3) !important;
+    }
+
+    /* ALTERNATIVE TARGETING BY DATA-TESTID */
+    button[data-testid="stBaseButton-primaryFormSubmit"] {
+        background: linear-gradient(90deg, #224347, #00A199) !important;
+        color: white !important;
+        border: 1px solid #00A199 !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 1.5rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        transition: all 0.2s ease !important;
+        width: 100% !important;
+        min-height: 2.5rem !important;
+        box-shadow: 0 2px 4px rgba(34, 67, 71, 0.2) !important;
+    }
+
+    button[data-testid="stBaseButton-primaryFormSubmit"]:hover {
+        background: linear-gradient(90deg, #1a3437, #008b85) !important;
+        border-color: #008b85 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 8px rgba(34, 67, 71, 0.3) !important;
+    }
+
+    /* Input field styling */
+    .stTextInput > div > div > input {
+        border: 2px solid #e6e9ef !important;
+        border-radius: 8px !important;
+        padding: 0.75rem !important;
+        font-size: 1rem !important;
+        transition: border-color 0.2s ease !important;
+    }
+
+    .stTextInput > div > div > input:focus {
+        border-color: #00A199 !important;
+        box-shadow: 0 0 0 3px rgba(0, 161, 153, 0.1) !important;
+        outline: none !important;
+    }
+
+    /* Custom header styling */
+    .custom-header {
+        background: linear-gradient(90deg, #224347 0%, #00A199 100%);
+        color: white;
+        padding: 1.5rem 2rem;
+        margin: -1rem -1rem 2rem -1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .company-logo {
+        width: 50px;
+        height: 50px;
+        border: 2px dashed rgba(255, 255, 255, 0.5);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.7rem;
+        text-align: center;
+        line-height: 1.1;
+        background: rgba(255, 255, 255, 0.1);
+        color: white;
+        font-weight: 600;
+    }
+
+    .app-title {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: white;
+    }
+
+    .header-right {
+        font-size: 0.9rem;
+        color: rgba(255, 255, 255, 0.9);
+    }
+
+    .header-right a {
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        margin-left: 1rem;
+    }
+
+    .header-right a:hover {
+        color: white;
+    }
+
+    /* Login page styling */
+    .login-container {
+        max-width: 400px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        border: 1px solid #e6e9ef;
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .login-logo {
+        width: 60px;
+        height: 60px;
+        margin: 0 auto 1rem;
+        background: linear-gradient(135deg, #224347, #00A199);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-align: center;
+        line-height: 1.1;
+        border: 2px dashed rgba(255,255,255,0.3);
+    }
+
+    .login-title {
+        color: #224347;
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+    }
+
+    .login-subtitle {
+        color: #6c757d;
+        font-size: 0.95rem;
+    }
+
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* Remove default margins */
+    .block-container {
+        padding-top: 1rem;
+    }
+
+    </style>
+    """, unsafe_allow_html=True)# Replace the test_hansard_api() function with this simplified version:
+#
+def styled_login_page():
+    """Complete replacement for the login section"""
+    inject_custom_css()
+
+    # Center the login form
+    col1, col2, col3 = st.columns([1, 2, 1])
+
+    with col2:
+        st.markdown("""
+        <div class="login-container">
+            <div class="login-header">
+                <div class="login-logo">YOUR<br>LOGO</div>
+                <div class="login-title">MP Biography Generator</div>
+                <div class="login-subtitle">Please log in to continue</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("login_form"):
+            st.markdown("### Login")
+            username = st.text_input("Username", placeholder="Enter your username")
+            password = st.text_input("Password", type="password", placeholder="Enter your password")
+            login_button = st.form_submit_button("Login", type="primary", use_container_width=True)
+
+            if login_button:
+                if check_password(username, password):
+                    st.session_state.authenticated = True
+                    st.session_state.name = st.secrets["credentials"]["usernames"][username]["name"]
+                    st.session_state.username = username
+                    st.session_state.email = st.secrets["credentials"]["usernames"][username]["email"]
+                    st.success("Login successful!")
+                    st.rerun()
+                else:
+                    st.error("Invalid username or password")
 
 def test_hansard_api_simple():
     """Simplified test function to debug Hansard API issues - no expanders"""
@@ -1474,25 +1714,7 @@ def main():
         st.session_state.show_debug = False
 
     if not st.session_state.authenticated:
-        st.title("MP Biography Generator")
-        st.subheader("Please log in to continue")
-
-        with st.form("login_form"):
-            username = st.text_input("Username")
-            password = st.text_input("Password", type="password")
-            login_button = st.form_submit_button("Login")
-
-            if login_button:
-                if check_password(username, password):
-                    st.session_state.authenticated = True
-                    st.session_state.name = st.secrets["credentials"]["usernames"][username]["name"]
-                    st.session_state.username = username
-                    st.session_state.email = st.secrets["credentials"]["usernames"][username]["email"]
-                    st.success("Login successful!")
-                    st.rerun()
-                else:
-                    st.error("Invalid username or password")
-
+        styled_login_page()  # ← Just this one line!
         return
 
     # User is authenticated - show main app
