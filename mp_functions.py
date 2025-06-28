@@ -759,7 +759,8 @@ def get_wiki_url(mp_name):
         return None
 
 
-def generate_biography(mp_name, input_content, examples, verified_positions=None, comments=None):
+# UPDATED GENERATE_BIOGRAPHY FUNCTION (mp_functions.py)
+def generate_biography(mp_name, input_content, examples, verified_positions=None, comments=None, length_setting="medium"):
     # Validate and clean inputs
     if isinstance(input_content, list):
         input_content = ' '.join(str(x) for x in input_content)
@@ -783,7 +784,8 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     # Combine input content with Wikipedia if available
     if wiki_content:
         input_content = f"{input_content}\n\nWikipedia information:\n{wiki_content}"
-        # Create the prompt
+
+    # Create the prompt
     current_date = datetime.now().strftime('%Y-%m-%d')  # Get current date in YYYY-MM-DD format
 
     # Create verified positions text
@@ -859,12 +861,82 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
             comments_text += f"URL: {comment.get('url', '')}\n"
             comments_text += f"Text: {comment.get('text', '')}\n\n"
 
+    # Define length-specific instructions
+    length_instructions = {
+        "brief": {
+            "description": "BRIEF biography (approximately 2-3 short paragraphs)",
+            "structure": """Structure for BRIEF biography:
+1. MP name and role as title
+2. Party and constituency in parentheses
+3. One paragraph introduction with current position and most important roles only
+4. One paragraph covering the most significant career highlights only
+5. One paragraph with key background information only
+""",
+            "content_guidelines": """BRIEF content guidelines:
+- Focus only on the most essential information
+- Include current role and 1-2 most significant positions
+- Mention only major career highlights (not detailed career history)
+- Include only the most relevant educational background
+- Omit minor roles, detailed chronology, and extensive background details
+- Keep each paragraph to 2-3 sentences maximum
+- Total length should be approximately 100-150 words"""
+        },
+        "medium": {
+            "description": "STANDARD biography (the example length)",
+            "structure": """Structure for STANDARD biography (follow the examples exactly):
+1. MP name and role as title
+2. Party and constituency in parentheses
+3. Introduction paragraph with current position and verified roles
+4. 'Politics' section with clear heading
+5. 'Background' section with clear heading
+""",
+            "content_guidelines": """STANDARD content guidelines:
+- Follow the example biographies' length and detail level exactly
+- Include comprehensive career history with specific positions and dates
+- Provide detailed educational background and qualifications
+- Include significant achievements and career progression
+- Maintain the same level of detail as shown in the examples
+- This is the default length that matches your training examples"""
+        },
+        "comprehensive": {
+            "description": "COMPREHENSIVE biography (extended detail)",
+            "structure": """Structure for COMPREHENSIVE biography:
+1. MP name and role as title
+2. Party and constituency in parentheses
+3. Detailed introduction paragraph with current position and all verified roles
+4. 'Politics' section with comprehensive political career details
+5. 'Background' section with extensive career and education history
+6. 'Early Life and Education' subsection if information available
+7. 'Professional Career' subsection with detailed work history
+""",
+            "content_guidelines": """COMPREHENSIVE content guidelines:
+- Significantly expand on all sections compared to the examples
+- Include detailed chronological career progression with specific dates
+- Provide comprehensive educational background including institutions and qualifications
+- Include extensive political career details, committee work, and parliamentary contributions
+- Add more context about the significance of roles and achievements
+- Include additional background information about early life if available
+- Expand on professional experience with more company names, positions, and responsibilities
+- Each section should be substantially longer than the standard examples
+- Total length should be approximately 50-75% longer than the standard examples"""
+        }
+    }
+
+    # Get the appropriate length settings
+    length_config = length_instructions.get(length_setting, length_instructions["medium"])
+
     prompt = f"""Using these examples as a guide for style ONLY, generate a new biography for {mp_name}.
+
+    LENGTH REQUIREMENT: {length_config['description']}
+
+    {length_config['structure']}
+
+    {length_config['content_guidelines']}
 
     CRITICAL REQUIREMENTS:
     1. ONLY include specific, verifiable facts about this MP - no generic statements about MP duties
     2. For career history, try to include named positions, companies, and years - no vague industry descriptions
-    3. Focus on concrete facts: dates, organizations, position titles, qualifications, specific achievements
+    3. Focus on concrete facts: dates, organisations, position titles, qualifications, specific achievements
     4. DO NOT include any of these generic phrases or concepts:
        - "advocating for constituents' interests"
        - "matters that matter to constituents"
@@ -874,16 +946,8 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     {verified_positions_text}
 
     DO NOT include any committee memberships or roles that are not listed above, even if you find them in other sources.
-    The biography should follow the exact same structure and sections as the examples, including:
 
-    1. The MP's name and role as a title
-    2. Their party and constituency in parentheses on a separate line
-    3. A brief introduction paragraph with their current position and VERIFIED roles
-    4. A "Politics" section with a clear heading (NO hash symbols or markdown formatting)
-    5. A "Background" section with a clear heading (NO hash symbols or markdown formatting)
-    {comments_text and '6. A "Relevant Comments" section with a clear heading (NO hash symbols), with bulleted list items' or ''}
-
-    Example biography for style reference:
+    Example biography for style reference (NOTE: This is STANDARD length):
     {examples}
 
     Information to use for the new biography:
@@ -895,7 +959,7 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     1. Match the exact formatting and style of the example, including the placement of newlines and section headers
     2. Use ONLY information from the provided input content and Wikipedia
     3. Rephrase and restructure the information - do not copy phrases directly
-    4. Maintain the same professional tone and level of detail
+    4. Maintain the same professional tone and level of detail appropriate for the {length_setting} length
     5. Use clear section headers with proper spacing before and after - DO NOT use any markdown formatting like # for headers
     6. Focus on the most significant aspects of their career and current role, be specific and detailed
     7. Organise information chronologically within each section
@@ -909,12 +973,20 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     15. Use the official synopsis where provided, incorporating its verified information naturally into the narrative
     16. Do NOT include Date of Birth
     17. In the Relevant Comments section, format each item as a bullet point (• )
-    18. Do not repeat information given in prior sections, so make sure the information is in the relevant section and not elsewhere"""
+    18. Do not repeat information given in prior sections, so make sure the information is in the relevant section and not elsewhere
+    19. ADJUST THE TOTAL LENGTH according to the {length_setting} setting specified above"""
 
     try:
+        # Adjust max_tokens based on length setting
+        max_tokens_map = {
+            "brief": 1500,
+            "medium": 3000,
+            "comprehensive": 4500
+        }
+
         response = client.messages.create(
             model="claude-3-7-sonnet-20250219",
-            max_tokens=3000,
+            max_tokens=max_tokens_map.get(length_setting, 3000),
             temperature=0.7,
             messages=[{
                 "role": "user",
@@ -929,6 +1001,71 @@ def generate_biography(mp_name, input_content, examples, verified_positions=None
     except Exception as e:
         print(f"Error in biography generation: {str(e)}")
         raise
+
+
+# UPDATED MAIN FUNCTION (mp_functions.py) - Update the existing main() function
+def main():
+    # Check for API key
+    if not os.getenv('ANTHROPIC_API_KEY'):
+        print("Please set your ANTHROPIC_API_KEY first!")
+        return
+
+    # Get MP name
+    mp_name = input("Enter MP name: ").strip()
+
+    # Check if biography already exists
+    if os.path.exists(f'new_bios/{mp_name}_biography.docx'):
+        print(f"Biography already exists for {mp_name}")
+        return
+
+    # Get input file path
+    input_path = input("Enter path to PDF file: ").strip()
+    if not os.path.exists(input_path):
+        print("File not found!")
+        return
+
+    try:
+        # Read examples
+        print("Reading example biographies...")
+        examples = read_example_bios()
+
+        # Read PDF input
+        print("Reading PDF file...")
+        input_content = read_pdf(input_path)
+        has_pdf = input_content is not None
+
+        # Get MP ID and API data
+        mp_id = get_mp_id(mp_name)
+        verified_positions = get_verified_positions(mp_id) if mp_id else None
+        has_api_data = verified_positions is not None
+
+        # Get Wikipedia data
+        print("Fetching Wikipedia data...")
+        wiki_data = get_wiki_data(mp_name)
+        has_wiki_data = wiki_data is not None
+
+        if input_content is None:
+            print("Error reading PDF file")
+            return
+
+        # Generate biography with default medium length
+        print("Generating biography...")
+        biography = generate_biography(mp_name, input_content, examples, verified_positions, None, "medium")
+
+        # Get Wikipedia URL if data exists
+        wiki_url = get_wiki_url(mp_name) if has_wiki_data else None
+
+        # Save biography
+        print("Saving biography...")
+        saved_path = save_biography(mp_name, biography,
+                                has_pdf=has_pdf,
+                                has_api_data=has_api_data,
+                                has_wiki_data=has_wiki_data,
+                                wiki_url=wiki_url)
+        print(f"Biography saved to {saved_path}")
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
 
 
 def apply_heading_style(paragraph):
@@ -1095,7 +1232,7 @@ def main():
 
         # Get MP ID and API data
         mp_id = get_mp_id(mp_name)
-        verified_positions = asyncio.run(get_verified_positions(mp_id)) if mp_id else None
+        verified_positions = get_verified_positions(mp_id) if mp_id else None
 
         # Generate biography with verified positions
         biography = generate_biography(mp_name, input_content, examples, verified_positions)

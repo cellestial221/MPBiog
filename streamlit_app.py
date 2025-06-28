@@ -476,6 +476,32 @@ def main_app(perplexity_api_key):
                     st.session_state.validation_result = None
                     st.rerun()
 
+            # Biography length slider
+            st.subheader("Biography Length")
+            length_options = {
+                "Brief": "brief",
+                "Standard": "medium",
+                "Comprehensive": "comprehensive"
+            }
+
+            length_display = st.select_slider(
+                "Choose biography length:",
+                options=list(length_options.keys()),
+                value="Standard",
+                help="Brief: 2-3 short paragraphs covering key points only. Standard: Full biography matching example length. Comprehensive: Extended detail with additional sections."
+            )
+
+            length_setting = length_options[length_display]
+
+            # Show length description
+            length_descriptions = {
+                "brief": "📝 **Brief**: Essential information only (2-3 short paragraphs, ~100-150 words)",
+                "medium": "📄 **Standard**: Comprehensive biography following example format (standard length)",
+                "comprehensive": "📚 **Comprehensive**: Extended detail with additional sections (~50-75% longer than standard)"
+            }
+
+            st.info(length_descriptions[length_setting])
+
             # Text area for additional information
             user_input_text = st.text_area(
                 "Enter additional information about the MP (Optional):",
@@ -541,7 +567,6 @@ def main_app(perplexity_api_key):
                                         return
 
                                     # Get verified positions using the known MP ID - much more efficient!
-                                    # Try synchronous version first
                                     verified_positions = None
                                     try:
                                         # Test if we can get basic MP data
@@ -549,7 +574,7 @@ def main_app(perplexity_api_key):
                                         test_response = requests.get(test_url, timeout=5)
                                         if test_response.status_code == 200:
                                             st.write(f"✅ MP ID {mp_id} is valid")
-                                            verified_positions = asyncio.run(get_verified_positions(mp_id))
+                                            verified_positions = get_verified_positions(mp_id)
                                         else:
                                             st.error(f"Invalid MP ID: {mp_id}")
                                     except Exception as e:
@@ -629,6 +654,9 @@ def main_app(perplexity_api_key):
                                         st.subheader("Selected MP Info")
                                         st.json(selected_mp)
 
+                                        st.subheader("Biography Settings")
+                                        st.write(f"Length: {length_display} ({length_setting})")
+
                                         st.subheader("Wikipedia Data")
                                         if wiki_data:
                                             st.text("Wikipedia content found")
@@ -659,8 +687,8 @@ def main_app(perplexity_api_key):
                                         st.session_state.generation_in_progress = False
                                         return
 
-                                    # Generate biography
-                                    status_text.text('Generating biography with Claude...')
+                                    # Generate biography with length setting - THIS IS THE KEY CHANGE
+                                    status_text.text(f'Generating {length_display.lower()} biography with Claude...')
                                     progress_bar.progress(80)
 
                                     if st.session_state.cancel_generation:
@@ -668,7 +696,7 @@ def main_app(perplexity_api_key):
                                         st.session_state.generation_in_progress = False
                                         return
 
-                                    biography = generate_biography(mp_name, input_content, examples, verified_positions, comments)
+                                    biography = generate_biography(mp_name, input_content, examples, verified_positions, comments, length_setting)
 
                                     # Save biography
                                     status_text.text('Saving biography...')
@@ -691,11 +719,11 @@ def main_app(perplexity_api_key):
                                     with open(saved_path, 'rb') as file:
                                         bio_bytes = file.read()
 
-                                    st.success('Biography generated successfully!')
+                                    st.success(f'{length_display} biography generated successfully!')
                                     st.download_button(
-                                        label="Download Biography",
+                                        label=f"Download {length_display} Biography",
                                         data=bio_bytes,
-                                        file_name=f"{mp_name}_biography.docx",
+                                        file_name=f"{mp_name}_{length_setting}_biography.docx",
                                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                                     )
 
@@ -738,11 +766,12 @@ def main_app(perplexity_api_key):
             - User-submitted relevant comments (optional)
             - Perplexity AI web search (optional)
 
-            **New: Enhanced MP Validation**
+            **New: Enhanced MP Validation & Biography Length Control**
             - Only verified MPs can be selected
             - Real-time search with suggestions
             - Protection against invalid entries
             - Shows party and constituency information
+            - Choose biography length: Brief, Standard, or Comprehensive
             """)
 
             # Use columns for feature highlights
@@ -764,6 +793,28 @@ def main_app(perplexity_api_key):
                 - Prevents invalid entries
                 - Multiple match handling
                 - Instant feedback
+                """)
+
+            # Biography length options
+            with st.expander("📏 Biography Length Options"):
+                st.markdown("""
+                **📝 Brief Biography:**
+                - 2-3 short paragraphs
+                - Essential information only
+                - Current role and key highlights
+                - ~100-150 words
+
+                **📄 Standard Biography:**
+                - Comprehensive coverage
+                - Follows example format
+                - Full career and background
+                - Standard length (default)
+
+                **📚 Comprehensive Biography:**
+                - Extended detail
+                - Additional sections
+                - More context and background
+                - ~50-75% longer than standard
                 """)
 
             # Example searches
@@ -790,9 +841,15 @@ def main_app(perplexity_api_key):
                 - Ignores titles and honorifics
                 - Handles partial name matches
                 - Orders results by relevance
+
+                **Length Control:**
+                - Adaptive token limits based on length
+                - Tailored prompts for each length setting
+                - Optimised for different use cases
                 """)
 
             # Removed search interface preview as requested
+
 def main():
     """Main entry point with custom authentication"""
 
