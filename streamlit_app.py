@@ -1114,8 +1114,7 @@ def setup_api_keys():
     """Setup API keys from secrets"""
     try:
         os.environ['ANTHROPIC_API_KEY'] = st.secrets["api_keys"]["anthropic"]
-        perplexity_key = st.secrets["api_keys"].get("perplexity", "")
-        return perplexity_key
+        # Removed perplexity_key return
     except Exception as e:
         st.error(f"API key setup failed: {str(e)}")
         st.info("Please ensure your API keys are configured in secrets.toml")
@@ -1339,7 +1338,7 @@ def cancel_generation():
     st.session_state.cancel_generation = True
     st.warning("Cancellation requested. The process will stop at the next checkpoint.")
 
-def main_app(perplexity_api_key):
+def main_app():
     """Main application logic with enhanced MP validation and Hansard search"""
     st.title("MP Biography Generator")
 
@@ -1400,17 +1399,6 @@ def main_app(perplexity_api_key):
                 height=150,
                 help="Add any additional information about the MP you'd like to include in the biography."
             )
-
-            # Add Perplexity search option
-            use_perplexity = False
-            issues = None
-            if perplexity_api_key:
-                use_perplexity = st.checkbox("Search for MP's statements on specific issues using Perplexity AI",
-                                          help="This will use Perplexity AI to search the web for statements made by the MP on specific issues.")
-
-                if use_perplexity:
-                    issues = st.text_input("Issues to search for (e.g., 'climate change, farming, immigration'):",
-                                        help="Specify topics you want to find the MP's statements on")
 
             # Relevant comments section with Hansard search - pass MP info
             comments = relevant_comments_section(selected_mp['name'], selected_mp['id'])
@@ -1514,40 +1502,6 @@ def main_app(perplexity_api_key):
                                         st.sidebar.success(f"✅ Wikipedia: Verified for {selected_mp['constituency']}")
                                     else:
                                         st.sidebar.warning("⚠️ Wikipedia: No verified page found")
-
-                                    # Perplexity search
-                                    if use_perplexity and issues and perplexity_api_key:
-                                        status_text.text('Searching for MP statements on specified issues...')
-                                        progress_bar.progress(60)
-
-                                        if st.session_state.cancel_generation:
-                                            st.warning("Generation cancelled.")
-                                            st.session_state.generation_in_progress = False
-                                            return
-
-                                        try:
-                                            perplexity_results = search_perplexity(mp_name, issues, perplexity_api_key)
-
-                                            if perplexity_results and "Error" not in perplexity_results:
-                                                perplexity_comment = {
-                                                    "type": "Perplexity AI Search Results",
-                                                    "url": "",
-                                                    "date": datetime.now().strftime("%Y-%m-%d"),
-                                                    "text": f"MP's positions on {issues}:\n\n{perplexity_results}"
-                                                }
-
-                                                if comments:
-                                                    comments.append(perplexity_comment)
-                                                else:
-                                                    comments = [perplexity_comment]
-
-                                                with st.expander("Perplexity Search Results"):
-                                                    if perplexity_results:
-                                                        st.write(perplexity_results)
-                                                    else:
-                                                        st.write("No results found")
-                                        except Exception as e:
-                                            st.warning(f"Error performing Perplexity search: {str(e)}")
 
                                     with st.expander("Debug Information"):
                                         st.subheader("Selected MP Info")
@@ -1796,7 +1750,7 @@ def main():
         return
 
     # User is authenticated - show main app
-    perplexity_api_key = setup_api_keys()
+    setup_api_keys()
 
     # Sidebar with user info and logout
     with st.sidebar:
@@ -1814,10 +1768,6 @@ def main():
         # API Status
         st.header("API Status")
         st.success("✅ Anthropic API: Configured")
-        if perplexity_api_key and perplexity_api_key != "your_perplexity_api_key_here":
-            st.success("✅ Perplexity API: Available")
-        else:
-            st.warning("⚠️ Perplexity API: Not configured")
 
         # Check Hansard API
         try:
@@ -1855,7 +1805,7 @@ def main():
             test_hansard_api_simple()
 
     # Run main app
-    main_app(perplexity_api_key)
+    main_app()
 
 if __name__ == "__main__":
     main()
