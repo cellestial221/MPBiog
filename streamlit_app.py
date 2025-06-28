@@ -15,8 +15,8 @@ from mp_functions import (
     read_example_bios,
     get_mp_id,
     get_mp_data,
-    get_wiki_data,
-    get_wiki_url,
+    get_wiki_data_verified,    # ← Changed
+    get_wiki_url_verified,
     generate_biography,
     save_biography,
     get_verified_positions,
@@ -1186,9 +1186,16 @@ def main_app(perplexity_api_key):
                                         st.session_state.generation_in_progress = False
                                         return
 
-                                    wiki_data = get_wiki_data(mp_name)
+                                    # NEW CODE
+                                    wiki_data = get_wiki_data_verified(selected_mp['name'], selected_mp['constituency'])
                                     has_wiki_data = wiki_data is not None
-                                    wiki_url = get_wiki_url(mp_name) if has_wiki_data else None
+                                    wiki_url = get_wiki_url_verified(selected_mp['name'], selected_mp['constituency']) if has_wiki_data else None
+
+                                    # After getting wiki_data, add this:
+                                    if has_wiki_data:
+                                        st.sidebar.success(f"✅ Wikipedia: Verified for {selected_mp['constituency']}")
+                                    else:
+                                        st.sidebar.warning("⚠️ Wikipedia: No verified page found")
 
                                     # Perplexity search
                                     if use_perplexity and issues and perplexity_api_key:

@@ -15,6 +15,214 @@ import requests
 import io
 import wikipediaapi
 
+def verify_constituency_in_wikipedia(page_url, constituency):
+    """
+    Simple verification: check if constituency appears in Wikipedia page content
+    Returns True if constituency is mentioned, False otherwise
+    """
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+
+        response = requests.get(page_url, timeout=10)
+        if response.status_code != 200:
+            return False
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        content = soup.get_text().lower()
+
+        # Check for constituency (handle common variations)
+        constituency_lower = constituency.lower()
+        constituency_variations = [
+            constituency_lower,
+            constituency_lower.replace(' and ', ' & '),
+            constituency_lower.replace(' & ', ' and '),
+        ]
+
+        for variation in constituency_variations:
+            if variation in content:
+                return True
+
+        return False
+
+    except Exception as e:
+        print(f"Error verifying constituency: {str(e)}")
+        return False
+
+
+def get_mp_wiki_link_verified(mp_name, constituency):
+    """
+    Enhanced version of get_mp_wiki_link that verifies constituency
+    - Uses the same search logic as before
+    - Adds constituency verification for found pages
+    - Future-proof: doesn't rely on specific election years
+    """
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+
+        print(f"Searching for Wikipedia page: {mp_name} (constituency: {constituency})")
+
+        # Use generic "List of MPs" page (not year-specific)
+        potential_matches = []
+
+        # Try current parliament list first
+        list_urls = [
+            "https://en.wikipedia.org/wiki/List_of_MPs_elected_in_the_2024_United_Kingdom_general_election",
+            "https://en.wikipedia.org/wiki/List_of_current_members_of_the_British_Parliament"
+        ]
+
+        name_parts = mp_name.lower().split()
+        first_name = name_parts[0] if name_parts else ""
+        last_name = name_parts[-1] if len(name_parts) > 1 else name_parts[0] if name_parts else ""
+
+        for list_url in list_urls:
+            try:
+                response = requests.get(list_url, timeout=10)
+                if response.status_code != 200:
+                    continue
+
+                soup = BeautifulSoup(response.text, 'html.parser')
+                tables = soup.find_all('table', class_='wikitable')
+
+                for table in tables:
+                    for link in table.find_all('a'):
+                        href = link.get('href', '')
+                        if not href.startswith('/wiki/'):
+                            continue
+
+                        # Skip obvious non-MP pages
+                        if any(x in href.lower() for x in [
+                            'constituency', 'party', 'election', 'parliament', 'list_of', 'category:'
+                        ]):
+                            continue
+
+                        link_text = link.get_text().strip().lower()
+
+                        # Simple name matching (same as before)
+                        if (mp_name.lower() in link_text or
+                            (first_name in link_text and last_name in link_text) or
+                            (last_name in link_text and len(last_name) > 4)):
+
+                            full_url = f"https://en.wikipedia.org{href}"
+                            if full_url not in [m['url'] for m in potential_matches]:
+                                potential_matches.append({
+                                    'url': full_url,
+                                    'text': link.get_text().strip()
+                                })
+
+            except Exception as e:
+                print(f"Error searching {list_url}: {str(e)}")
+                continue
+
+        print(f"Found {len(potential_matches)} potential Wikipedia matches")
+
+        # Now verify each match has the constituency
+        for match in potential_matches:
+            print(f"Checking: {match['text']} -> {match['url']}")
+
+            if verify_constituency_in_wikipedia(match['url'], constituency):
+                print(f"✅ VERIFIED: Constituency '{constituency}' found in {match['text']}")
+                return match['url']
+            else:
+                print(f"❌ REJECTED: Constituency '{constituency}' not found in {match['text']}")
+
+        print(f"❌ No verified Wikipedia page found for {mp_name} in {constituency}")
+        return None
+
+    except Exception as e:
+        print(f"Error in Wikipedia search: {str(e)}")
+        return None
+
+
+def get_wiki_data_verified(mp_name, constituency, max_chars=3500):
+    """
+    Enhanced version of get_wiki_data with constituency verification
+    - Same content extraction logic as before
+    - Uses verified Wikipedia URL
+    """
+    try:
+        print(f"Getting verified Wikipedia data for: {mp_name}")
+
+        # Get verified Wikipedia URL
+        wiki_url = get_mp_wiki_link_verified(mp_name, constituency)
+
+        if not wiki_url:
+            print("No verified Wikipedia page found")
+            return None
+
+        # Extract page title from URL
+        page_title = wiki_url.split('/')[-1].replace('_', ' ')
+        print(f"Using verified Wikipedia page: {page_title}")
+
+        # Get content using Wikipedia API (same as original function)
+        import wikipediaapi
+
+        wiki = wikipediaapi.Wikipedia(
+            user_agent='MP_Biography_Generator (yourname@example.com)',
+            language='en'
+        )
+
+        page = wiki.page(page_title)
+
+        if not page.exists():
+            print(f"Page does not exist in Wikipedia API: {page_title}")
+            return None
+
+        # Get content (exactly same logic as original get_wiki_data function)
+        content = page.summary
+        print(f"Summary length: {len(content)} characters")
+
+        # Add important sections (same as original)
+        important_sections = [
+            'early life', 'education', 'background', 'career', 'personal life',
+            'political career', 'parliamentary career', 'political views',
+            'controversies', 'awards', 'publications'
+        ]
+
+        essential_added = False
+        for section in page.sections:
+            section_title_lower = section.title.lower()
+
+            if any(x in section_title_lower for x in ['see also', 'references', 'external links', 'notes', 'bibliography']):
+                continue
+
+            is_important = any(imp in section_title_lower for imp in important_sections)
+
+            if is_important:
+                section_text = f"\n\n{section.title}\n{section.text}"
+                if len(content) + len(section_text) <= max_chars:
+                    content += section_text
+                    essential_added = True
+                    print(f"Added section: {section.title}")
+
+        # Add other sections if room (same logic as original)
+        if not essential_added or len(content) < max_chars * 0.7:
+            for section in page.sections:
+                section_title_lower = section.title.lower()
+
+                if (any(imp in section_title_lower for imp in important_sections) or
+                    any(x in section_title_lower for x in ['see also', 'references', 'external links', 'notes', 'bibliography'])):
+                    continue
+
+                section_text = f"\n\n{section.title}\n{section.text}"
+                if len(content) + len(section_text) <= max_chars:
+                    content += section_text
+
+        print(f"Final verified content length: {len(content)} characters")
+        return content
+
+    except Exception as e:
+        print(f"Error in verified Wikipedia data retrieval: {str(e)}")
+        return None
+
+
+def get_wiki_url_verified(mp_name, constituency):
+    """
+    Simple wrapper to get verified Wikipedia URL
+    """
+    return get_mp_wiki_link_verified(mp_name, constituency)
+
 
 def search_perplexity(mp_name, issues, api_key):
     """
