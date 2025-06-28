@@ -332,8 +332,8 @@ def styled_login_page():
             <div style="width: 70px; height: 70px; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: center; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 1px solid #e6e9ef;">
                 {logo_html}
             </div>
-            <h1 style="color: #224347; font-size: 1.5rem; font-weight: 600; margin: 0 0 0.5rem 0; font-family: 'Inter', sans-serif;">MP Biography Generator</h1>
-            <p style="color: #6c757d; font-size: 0.95rem; margin: 0;">Please log in to continue</p>
+            <div style="color: #224347; font-size: 1.5rem; font-weight: 600; margin: 0 0 0.5rem 0; font-family: 'Inter', sans-serif; text-align: center; width: 100%; padding: 0;">MP Biography Generator</div>
+            <p style="color: #6c757d; font-size: 0.95rem; margin: 0; text-align: center; width: 100%; padding: 0;">Please log in to continue</p>
         </div>
         """, unsafe_allow_html=True)
 
