@@ -56,6 +56,29 @@ def inject_custom_css():
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
+    /* Simple biography length button styling */
+    button[key^="select_length"] {
+        border: 2px solid #e6e9ef !important;
+        border-radius: 12px !important;
+        padding: 1.5rem !important;
+        background: white !important;
+        min-height: 120px !important;
+        color: #333 !important;
+        transition: all 0.3s ease !important;
+    }
+
+    button[key^="select_length"]:hover {
+        border-color: #00A199 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 12px rgba(0, 161, 153, 0.15) !important;
+    }
+
+    button[key^="select_length"][kind="primary"] {
+        border-color: #00A199 !important;
+        background: linear-gradient(135deg, rgba(0, 161, 153, 0.05) 0%, rgba(34, 67, 71, 0.05) 100%) !important;
+        box-shadow: 0 0 0 3px rgba(0, 161, 153, 0.1) !important;
+        color: #00A199 !important;
+    }
     /* Progress indicator - ULTRA COMPACT VERSION */
     .progress-section {
         background: linear-gradient(135deg, #224347 0%, #00A199 100%);
@@ -1327,6 +1350,7 @@ The search terms should be:
 - Varied to catch different ways the topic might be discussed
 - Suitable for parliamentary/political context
 - Be specific and related
+- Be 1-2 words only
 
 Format your response as a simple list of search terms, one per line, without numbers or bullets.
 
@@ -1605,7 +1629,7 @@ def create_progress_indicator_navigation():
     """, unsafe_allow_html=True)
 
 def wizard_step_1_select_mp():
-    """Step 1: Select MP - fixed multiple name handling"""
+    """Step 1: Select MP - FIXED to handle multiple matches properly"""
     st.header("Step 1: Select Member of Parliament")
 
     # Check if we already have a selected MP
@@ -1617,18 +1641,15 @@ def wizard_step_1_select_mp():
         with col1:
             if st.button("🔄 Change MP", key="change_mp_step1", use_container_width=True):
                 # Clear selection and show search again
-                st.session_state.selected_mp = None
-                st.session_state.mp_search_query = ''
-                st.session_state.show_suggestions = False
-                st.session_state.validation_result = None
-                st.session_state.mp_search_results = None
+                for key in ['selected_mp', 'mp_search_query', 'show_suggestions', 'validation_result', 'mp_search_results']:
+                    if key in st.session_state:
+                        del st.session_state[key]
                 st.rerun()
 
         with col3:
             if st.button("Next →", type="primary", key="step1_next", use_container_width=True):
                 st.session_state.wizard_step = 2
                 st.rerun()
-
         return
 
     # Check if we have search results to display
@@ -1637,9 +1658,9 @@ def wizard_step_1_select_mp():
         search_query = st.session_state.get('mp_search_query', '')
 
         if len(suggestions) == 1:
-            st.info(f"Found MP matching '{search_query}':")
+            st.info(f"Found MP matching '{search_query}'. Please confirm:")
         else:
-            st.warning(f"Found {len(suggestions)} MPs matching '{search_query}'. Please select one:")
+            st.info(f"Found {len(suggestions)} MPs matching '{search_query}'. Please select one:")
 
         # Display suggestions in a clean grid
         for i in range(0, len(suggestions), 2):
@@ -1650,9 +1671,9 @@ def wizard_step_1_select_mp():
                     suggestion = suggestions[i + j]
 
                     with col:
-                        # Create a card-like button for each suggestion
+                        # Show MP info clearly
                         if st.button(
-                            f"**{suggestion['name']}**\n{suggestion['party']} • {suggestion['constituency']}",
+                            f"**{suggestion['name']}**",
                             key=f"suggestion_{i+j}",
                             use_container_width=True,
                             help=f"Select {suggestion['name']}"
@@ -1662,12 +1683,16 @@ def wizard_step_1_select_mp():
                             st.success(f"✅ Selected: {suggestion['name']}")
                             st.rerun()
 
-        # Option to search again
-        if st.button("🔍 Search Again", key="search_again", use_container_width=True):
-            st.session_state.mp_search_results = None
-            st.session_state.mp_search_query = ''
-            st.rerun()
+                        # Show party and constituency below button
+                        st.caption(f"{suggestion['party']} • {suggestion['constituency']}")
 
+        # Option to search again
+        st.divider()
+        if st.button("🔍 Search Again", key="search_again", use_container_width=True):
+            for key in ['mp_search_results', 'mp_search_query']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
         return
 
     # MP search interface with submit button
@@ -1676,7 +1701,7 @@ def wizard_step_1_select_mp():
             "Search for MP name:",
             value=st.session_state.get('mp_search_query', ''),
             placeholder="e.g., Keir Starmer, Rishi Sunak, Angela Rayner...",
-            help="Enter the MP's name (titles like 'Sir' are optional)"
+            help="Enter the MP's name (titles like 'Sir' are optional). Only current MPs in the House of Commons will be shown."
         )
 
         submit_search = st.form_submit_button("🔍 Search MPs", type="primary", use_container_width=True)
@@ -1689,7 +1714,7 @@ def wizard_step_1_select_mp():
             validation_result = validate_mp_name(search_query)
 
         if validation_result['is_valid']:
-            # Direct match found - auto-select only if it's a very high confidence match
+            # Direct match found - auto-select only if very confident
             st.session_state.selected_mp = validation_result['exact_match']
             st.success(f"✅ Found exact match: {validation_result['exact_match']['name']}")
             st.rerun()
@@ -1711,7 +1736,8 @@ def wizard_step_1_select_mp():
             - You can search by surname only (e.g., "Starmer")
             - Handles titles automatically (Sir, Dame, etc.)
             - Shows suggestions if multiple matches found
-            - Only current MPs are available
+            - **Only current MPs in the House of Commons are available**
+            - Lords and peers are automatically excluded
             """)
 
 def create_hansard_search_section_wizard():
@@ -1945,7 +1971,7 @@ def create_manual_comments_section_wizard():
 
 
 def wizard_step_2_configure():
-    """Step 2: Configure biography settings - fixed session state"""
+    """Step 2: Configure biography settings - CLEAN clickable cards only"""
     st.header("Step 2: Configure Biography")
 
     selected_mp = st.session_state.get('selected_mp')
@@ -1954,54 +1980,65 @@ def wizard_step_2_configure():
     # Biography length selection
     st.subheader("Biography Length")
 
-    length_options = {
-        "Brief": "brief",
-        "Standard": "medium",
-        "Comprehensive": "comprehensive"
-    }
+    length_options = [
+        {
+            "key": "brief",
+            "title": "Brief Biography",
+            "description": "Essential information only (2-3 short paragraphs, ~100-150 words)",
+            "icon": "📝"
+        },
+        {
+            "key": "medium",
+            "title": "Standard Biography",
+            "description": "Comprehensive coverage following example format (default length)",
+            "icon": "📄"
+        },
+        {
+            "key": "comprehensive",
+            "title": "Comprehensive Biography",
+            "description": "Extended detail with additional sections (~50-75% longer)",
+            "icon": "📚"
+        }
+    ]
 
-    # Visual selection cards
-    cols = st.columns(3)
     current_length = st.session_state.get('length_setting', 'medium')
 
-    for i, (display_name, value) in enumerate(length_options.items()):
-        with cols[i]:
-            is_selected = current_length == value
+    # Create three columns for the selection cards
+    cols = st.columns(3)
 
-            button_style = "primary" if is_selected else "secondary"
+    for i, option in enumerate(length_options):
+        with cols[i]:
+            is_selected = current_length == option["key"]
+
+            # Create button with card-like content
+            button_label = f"{option['icon']} **{option['title']}**\n\n{option['description']}"
+
             if st.button(
-                f"**{display_name}**",
-                key=f"length_{value}",
-                type=button_style,
-                use_container_width=True
+                button_label,
+                key=f"select_length_{option['key']}",
+                use_container_width=True,
+                type="primary" if is_selected else "secondary"
             ):
-                st.session_state.length_setting = value
+                st.session_state.length_setting = option["key"]
                 st.rerun()
 
-    # Show description of selected length
-    descriptions = {
-        "brief": "📝 **Brief Biography:** Essential information only (2-3 short paragraphs, ~100-150 words)",
-        "medium": "📄 **Standard Biography:** Comprehensive coverage following example format (default length)",
-        "comprehensive": "📚 **Comprehensive Biography:** Extended detail with additional sections (~50-75% longer)"
-    }
-
-    if current_length in descriptions:
-        st.info(descriptions[current_length])
+    # Show current selection
+    current_option = next((opt for opt in length_options if opt["key"] == current_length), length_options[1])
+    st.success(f"✅ Selected: **{current_option['title']}** - {current_option['description']}")
 
     st.divider()
 
-    # Additional information - FIXED to use session state properly
+    # Additional information section (unchanged)
     st.subheader("Additional Information (Optional)")
 
-    # Get current value from session state
     current_additional_info = st.session_state.get('additional_info', '')
 
     additional_info = st.text_area(
         "Enter any specific information about the MP you'd like to include:",
-        value=current_additional_info,  # Set the current value
+        value=current_additional_info,
         height=120,
         placeholder="Add information about recent work, policy positions, constituency issues, etc.",
-        key="additional_info_input"  # Use different key to avoid conflicts
+        key="additional_info_input"
     )
 
     # Save to session state whenever it changes
@@ -2017,11 +2054,9 @@ def wizard_step_2_configure():
 
     with col3:
         if st.button("Next →", type="primary", key="step2_next", use_container_width=True):
-            # Make sure additional info is saved before moving on
             st.session_state.additional_info = additional_info
             st.session_state.wizard_step = 3
             st.rerun()
-
 
 def wizard_step_3_add_information():
     """Step 3: Add additional information - with tabs for better navigation"""
@@ -2485,7 +2520,7 @@ def hansard_search_interface(mp_name, mp_id):
 # Cache for API responses to improve performance
 @lru_cache(maxsize=500)
 def cached_search_mps(query, limit=20):
-    """Cached version of MP search to improve performance"""
+    """Cached version of MP search - FIXED to only return Commons MPs"""
     if not query or len(query.strip()) < 2:
         return []
 
@@ -2494,10 +2529,10 @@ def cached_search_mps(query, limit=20):
         params = {
             'Name': query.strip(),
             'IsCurrentMember': True,
-            'take': limit
+            'take': limit * 2  # Get more results to account for filtering
         }
 
-        response = requests.get(search_url, params=params, timeout=3)  # Further reduced timeout for local testing
+        response = requests.get(search_url, params=params, timeout=3)
         if response.status_code == 200:
             data = response.json()
 
@@ -2506,22 +2541,28 @@ def cached_search_mps(query, limit=20):
                 for item in data['items']:
                     member = item.get('value', {})
 
+                    # Check if this is a Commons MP (house_id == 1)
+                    latest_membership = member.get('latestHouseMembership', {})
+                    house_id = latest_membership.get('house')
+
+                    # ONLY include Commons MPs (house_id == 1)
+                    if house_id != 1:
+                        continue
+
                     mp_info = {
                         'id': member.get('id'),
                         'name': member.get('nameDisplayAs', ''),
                         'party': member.get('latestParty', {}).get('name', '') if member.get('latestParty') else '',
-                        'constituency': '',
-                        'house': 'Commons'
+                        'constituency': latest_membership.get('membershipFrom', ''),
+                        'house': 'Commons'  # We know it's Commons since we filtered
                     }
 
-                    latest_membership = member.get('latestHouseMembership', {})
-                    if latest_membership:
-                        mp_info['constituency'] = latest_membership.get('membershipFrom', '')
-                        house_id = latest_membership.get('house')
-                        mp_info['house'] = 'Commons' if house_id == 1 else 'Lords' if house_id == 2 else 'Unknown'
-
-                    if mp_info['name'] and mp_info['id']:
+                    if mp_info['name'] and mp_info['id'] and mp_info['constituency']:
                         mps.append(mp_info)
+
+                        # Stop when we have enough Commons MPs
+                        if len(mps) >= limit:
+                            break
 
             return tuple(mps)  # Return tuple for caching
 
@@ -2564,7 +2605,7 @@ def calculate_similarity(query, mp_name):
     return SequenceMatcher(None, query_norm, mp_name_norm).ratio()
 
 def validate_mp_name(query):
-    """Enhanced validation with better name matching logic"""
+    """Enhanced validation - FIXED to always show multiple options when there are several matches"""
     if not query or len(query.strip()) < 2:
         return {
             'is_valid': False,
@@ -2573,12 +2614,12 @@ def validate_mp_name(query):
             'message': 'Please enter at least 2 characters'
         }
 
-    # Add debouncing - only search after user stops typing with longer delay for performance
+    # Add debouncing
     if 'last_search_time' not in st.session_state:
         st.session_state.last_search_time = 0
 
     current_time = time.time()
-    if current_time - st.session_state.last_search_time < 1.0:  # Increased to 1 second for better performance
+    if current_time - st.session_state.last_search_time < 1.0:
         return {
             'is_valid': False,
             'exact_match': None,
@@ -2607,11 +2648,23 @@ def validate_mp_name(query):
     # Sort by similarity
     mp_similarities.sort(key=lambda x: x[1], reverse=True)
 
+    # Get high-quality matches (similarity >= 0.8)
+    high_quality_matches = [match for match in mp_similarities if match[1] >= 0.8]
+
+    # CHANGED: Only auto-select if there's exactly ONE very high quality match (>= 0.95)
+    # and no other good matches
     best_match = mp_similarities[0]
     best_similarity = best_match[1]
 
-    # More generous matching - if similarity is very high, consider it a match
-    if best_similarity >= 0.9:  # Lowered threshold for better UX
+    very_high_matches = [match for match in mp_similarities if match[1] >= 0.95]
+
+    # Only auto-select if:
+    # 1. We have exactly one very high quality match (>= 0.95)
+    # 2. AND the second best match (if any) is significantly worse (< 0.85)
+    if (len(very_high_matches) == 1 and
+        best_similarity >= 0.95 and
+        (len(mp_similarities) == 1 or mp_similarities[1][1] < 0.85)):
+
         return {
             'is_valid': True,
             'exact_match': best_match[0],
@@ -2619,23 +2672,29 @@ def validate_mp_name(query):
             'message': f'✅ Found MP: {best_match[0]["name"]}'
         }
 
-    # If similarity is good but not perfect, show as suggestion
-    if best_similarity >= 0.7:
+    # Otherwise, show suggestions for any match with similarity >= 0.6
+    good_matches = [match[0] for match in mp_similarities if match[1] >= 0.6]
+
+    if good_matches:
+        if len(good_matches) == 1:
+            message = f'Found MP matching "{query}". Please confirm:'
+        else:
+            message = f'Found {len(good_matches)} MPs matching "{query}". Please select one:'
+
         return {
             'is_valid': False,
             'exact_match': None,
-            'suggestions': [match[0] for match in mp_similarities[:5]],
-            'message': f'Did you mean "{best_match[0]["name"]}"?'
+            'suggestions': good_matches[:10],  # Limit to 10 suggestions
+            'message': message
         }
 
-    # Return all suggestions
+    # No good matches
     return {
         'is_valid': False,
         'exact_match': None,
-        'suggestions': [match[0] for match in mp_similarities[:10]],
-        'message': f'Multiple MPs found. Please select one:'
+        'suggestions': [match[0] for match in mp_similarities[:5]],  # Show top 5 as fallback
+        'message': f'No exact matches found for "{query}". Did you mean one of these?'
     }
-
 
 def mp_name_input_with_validation():
     """Enhanced MP name input with improved performance and UX"""
