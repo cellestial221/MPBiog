@@ -172,17 +172,12 @@ def inject_custom_css():
     .company-logo {
         width: 50px;
         height: 50px;
-        border: 2px dashed rgba(255, 255, 255, 0.5);
-        border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 0.7rem;
         text-align: center;
         line-height: 1.1;
-        background: rgba(255, 255, 255, 0.1);
-        color: white;
-        font-weight: 600;
     }
 
     /* Section styling - REMOVE GREY BACKGROUND */
@@ -1063,162 +1058,155 @@ def create_configuration_section():
     st.text_area("Additional Information (Optional):", key="additional_info", height=100,
                 placeholder="Add specific information about the MP's recent work, policy positions, etc.")
 
-def create_hansard_search_section():
-    """Hansard search interface integrated into main app"""
-    st.subheader("🔍 Search Parliamentary Records")
-
+def create_hansard_search_inline():
+    """Compact Hansard search with improved date picker and no max results slider"""
     selected_mp = st.session_state.get('selected_mp')
-    if not selected_mp:
-        st.error("No MP selected")
-        return
 
-    # Back button
-    if st.button("← Back to Actions", key="back_from_hansard"):
-        st.session_state.show_hansard_search = False
+    if st.button("← Close Search", key="close_hansard_search"):
+        st.session_state.hansard_tab_mode = None
         st.rerun()
 
-    st.write(f"Search for **{selected_mp['name']}'s** parliamentary contributions on specific topics.")
-
-    # Initialize session state for Hansard search
+    # Initialize session state
     if 'hansard_results' not in st.session_state:
         st.session_state.hansard_results = []
     if 'selected_hansard_items' not in st.session_state:
         st.session_state.selected_hansard_items = []
-    if 'hansard_search_performed' not in st.session_state:
-        st.session_state.hansard_search_performed = False
-    if 'hansard_comments_added' not in st.session_state:
-        st.session_state.hansard_comments_added = []
 
-    # Search form
-    with st.form("hansard_search_form_main"):
+    # Improved search form with better date pickers
+    st.info("💡 **Note:** This searches spoken contributions, written questions, written statements, and written answers")
+
+    with st.form("hansard_search_inline"):
         issue_query = st.text_input(
-            "What topic would you like to search for?",
-            placeholder="e.g., climate change, healthcare, education funding, housing policy...",
-            help="Describe the topic or issue you want to find the MP's statements about"
+            "Topic to search for:",
+            placeholder="e.g., climate change, healthcare, housing policy..."
         )
 
-        # Date range selection
+        # Improved date selection with precise date pickers
         col1, col2 = st.columns(2)
         with col1:
-            date_range = st.selectbox(
-                "Time period",
-                ["Last 6 months", "Last year", "Last 2 years", "All available"],
-                index=1
+            start_date = st.date_input(
+                "Start date",
+                value=datetime.now().date() - timedelta(days=365),  # Default to 1 year ago
+                max_value=datetime.now().date(),
+                help="Select the earliest date to search from"
             )
         with col2:
-            max_results = st.slider("Maximum results", 5, 30, 15)
+            end_date = st.date_input(
+                "End date",
+                value=datetime.now().date(),
+                max_value=datetime.now().date(),
+                help="Select the latest date to search to"
+            )
 
-        search_button = st.form_submit_button("🔍 Search Hansard Records", type="primary", use_container_width=True)
+        # No max results slider since API limits to 4 per type anyway
+        search_button = st.form_submit_button("🔍 Search All Parliamentary Records", type="primary", use_container_width=True)
 
     if search_button and issue_query:
-        with st.spinner("Generating search terms and searching Hansard..."):
-            # Generate search terms using Claude
+        if start_date > end_date:
+            st.error("Start date must be before end date")
+            return
+
+        with st.spinner("Searching all parliamentary records..."):
+            # Generate search terms for better coverage
             search_terms = generate_search_terms(issue_query, selected_mp['name'])
+            st.success(f"🔍 Searching for: {', '.join(search_terms)}")
 
-            if search_terms:
-                st.success(f"Generated search terms: {', '.join(search_terms)}")
+            # Convert dates to strings
+            start_date_str = start_date.strftime('%Y-%m-%d')
+            end_date_str = end_date.strftime('%Y-%m-%d')
 
-                # Calculate date range
-                start_date = None
-                end_date = datetime.now().strftime('%Y-%m-%d')
+            # Search with the improved function
+            results = search_hansard_contributions(
+                selected_mp['id'],
+                search_terms,
+                start_date_str,
+                end_date_str,
+                20  # This doesn't really matter due to API limits, but keeping for compatibility
+            )
+            st.session_state.hansard_results = results
 
-                if date_range == "Last 6 months":
-                    start_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
-                elif date_range == "Last year":
-                    start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-                elif date_range == "Last 2 years":
-                    start_date = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')
+            if results:
+                # Group results by type for better display
+                contributions = [r for r in results if r['contribution_type'] == 'Spoken Contribution']
+                written_questions = [r for r in results if r['contribution_type'] == 'Written Question']
+                written_statements = [r for r in results if r['contribution_type'] == 'Written Statement']
+                written_answers = [r for r in results if r['contribution_type'] == 'Written Answer']
 
-                # Search Hansard
-                results = search_hansard_contributions(selected_mp['id'], search_terms, start_date, end_date, max_results)
+                st.success(f"✅ Found {len(results)} records: {len(contributions)} spoken, {len(written_questions)} questions, {len(written_statements)} statements, {len(written_answers)} answers")
 
-                st.session_state.hansard_results = results
-                st.session_state.hansard_search_performed = True
+            else:
+                st.warning("No parliamentary records found. Try different search terms or expand the date range.")
 
-                if results:
-                    st.success(f"Found {len(results)} relevant contributions!")
-                else:
-                    st.warning("No contributions found for this topic. Try different search terms or expand the date range.")
+    # Display results with type indicators
+    if st.session_state.hansard_results:
+        st.write(f"**📋 Found {len(st.session_state.hansard_results)} Parliamentary Records:**")
 
-    # Display results if available
-    if st.session_state.hansard_search_performed and st.session_state.hansard_results:
-        st.subheader(f"📋 Search Results ({len(st.session_state.hansard_results)} found)")
-
-        # Selection controls
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            if st.button("✅ Select All", key="select_all_hansard_main"):
-                st.session_state.selected_hansard_items = [item['id'] for item in st.session_state.hansard_results]
-                st.rerun()
-        with col2:
-            if st.button("❌ Clear Selection", key="clear_all_hansard_main"):
-                st.session_state.selected_hansard_items = []
-                st.rerun()
-        with col3:
-            selected_count = len(st.session_state.selected_hansard_items)
-            st.write(f"**Selected: {selected_count}**")
-
-        # Display results
+        # Show results with contribution type badges
         for i, result in enumerate(st.session_state.hansard_results):
-            with st.container():
-                # Checkbox for selection
-                is_selected = result['id'] in st.session_state.selected_hansard_items
+            # Checkbox for selection
+            selected = st.checkbox(
+                f"Select this {result['contribution_type'].lower()}",
+                value=result['id'] in st.session_state.selected_hansard_items,
+                key=f"hansard_inline_{i}"
+            )
 
-                selected = st.checkbox(
-                    f"Select this contribution",
-                    value=is_selected,
-                    key=f"hansard_select_main_{i}"
-                )
+            if selected and result['id'] not in st.session_state.selected_hansard_items:
+                st.session_state.selected_hansard_items.append(result['id'])
+            elif not selected and result['id'] in st.session_state.selected_hansard_items:
+                st.session_state.selected_hansard_items.remove(result['id'])
 
-                if selected and result['id'] not in st.session_state.selected_hansard_items:
-                    st.session_state.selected_hansard_items.append(result['id'])
-                elif not selected and result['id'] in st.session_state.selected_hansard_items:
-                    st.session_state.selected_hansard_items.remove(result['id'])
+            # Show result with type badge
+            type_badges = {
+                            'Spoken Contribution': '🗣️',
+                            'Written Question': '❓',
+                            'Written Statement': '📄',
+                            'Written Answer': '📝'
+                        }
 
-                # Result display
-                result_date = format_hansard_date(result['date'])
-                st.markdown(f"**{result_date}** - {result['debate_title']}")
-                st.caption(f"Found by search term: '{result['search_term']}'")
+            type_badge = type_badges.get(result['contribution_type'], '📝')
 
-                # Show contribution text
-                text_to_show = result['full_text'] if result['full_text'] else result['text']
-                if len(text_to_show) > 400:
-                    text_to_show = text_to_show[:400] + "..."
+            st.markdown(f"**{format_hansard_date(result['date'])}** {type_badge} {result['contribution_type']} - {result['debate_title']}")
+            st.caption(f"Found by search term: '{result['search_term']}'")
 
-                st.write(text_to_show)
+            # Show content excerpt
+            text_to_show = result['full_text'] if result['full_text'] else result['text']
+            if len(text_to_show) > 600:
+                text_to_show = text_to_show[:600] + "..."
 
-                # Add link if available
-                if result.get('url'):
-                    st.markdown(f"🔗 [View in Hansard]({result['url']})")
+            st.write(text_to_show)
 
-                st.divider()
+            # Add link if available
+            if result.get('url'):
+                st.markdown(f"🔗 [View in Hansard]({result['url']})")
 
-        # Add selected items to comments
-        if st.session_state.selected_hansard_items:
-            if st.button(f"➕ Add {len(st.session_state.selected_hansard_items)} Selected Items",
-                        type="primary", key="add_hansard_to_comments", use_container_width=True):
-                # Convert selected results to comment format
+            st.divider()
+
+        # Selection summary and add button
+        selected_count = len(st.session_state.selected_hansard_items)
+        if selected_count > 0:
+            st.info(f"📌 {selected_count} records selected")
+
+            if st.button(f"➕ Add {selected_count} Selected Records", type="primary", use_container_width=True):
+                # Add selected items to comments
                 new_comments = []
                 for result in st.session_state.hansard_results:
                     if result['id'] in st.session_state.selected_hansard_items:
+                        full_text = result['full_text'] if result['full_text'] else result['text']
                         hansard_comment = {
-                            "type": "Parliamentary Remarks",
+                            "type": result['contribution_type'],
                             "url": result.get('url', ''),
-                            "date": result['date'][:10] if result['date'] else datetime.now().strftime("%Y-%m-%d"),
-                            "text": f"In {result['debate_title']} on {format_hansard_date(result['date'])}, {selected_mp['name']} said: \"{result['full_text'] if result['full_text'] else result['text']}\""
+                            "date": result['date'][:10],
+                            "text": f"In {result['debate_title']} on {format_hansard_date(result['date'])}, {selected_mp['name']} said: \"{full_text}\""
                         }
                         new_comments.append(hansard_comment)
 
-                # Add to session state
                 if 'hansard_comments_added' not in st.session_state:
                     st.session_state.hansard_comments_added = []
                 st.session_state.hansard_comments_added.extend(new_comments)
 
-                st.success(f"✅ Added {len(new_comments)} parliamentary contributions!")
-
-                # Clear selections and hide search
                 st.session_state.selected_hansard_items = []
-                st.session_state.show_hansard_search = False
+                st.session_state.hansard_tab_mode = None
+                st.success(f"✅ Added {len(new_comments)} parliamentary records!")
                 st.rerun()
 
 def create_hansard_management_section():
@@ -1392,10 +1380,19 @@ def create_custom_header():
     """Custom branded header to replace st.title"""
     user_name = st.session_state.get('name', 'User')
 
+    # Get logo as base64 (same as login page)
+    logo_base64 = get_logo_base64("Hlogowhite.png")  # Change "logo.png" to your actual logo filename
+
+    # Create logo HTML - either image or fallback
+    if logo_base64:
+        logo_html = f'<img src="data:image/png;base64,{logo_base64}" style="width: 36px; height: 40px; border-radius: 0px;" alt="Logo">'
+    else:
+        logo_html = '<div class="company-logo">YOUR<br>LOGO</div>'
+
     st.markdown(f"""
     <div class="custom-header">
         <div class="header-left">
-            <div class="company-logo">YOUR<br>LOGO</div>
+            <div class="company-logo">{logo_html}</div>
             <div class="app-title">MP Biography Generator</div>
         </div>
         <div class="header-right">
@@ -1406,162 +1403,6 @@ def create_custom_header():
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-
-def create_hansard_search_inline():
-    """Compact Hansard search with longer excerpts and pagination"""
-    selected_mp = st.session_state.get('selected_mp')
-
-    if st.button("← Close Search", key="close_hansard_search"):
-        st.session_state.hansard_tab_mode = None
-        st.rerun()
-
-    # Initialize session state
-    if 'hansard_results' not in st.session_state:
-        st.session_state.hansard_results = []
-    if 'selected_hansard_items' not in st.session_state:
-        st.session_state.selected_hansard_items = []
-    if 'hansard_search_page' not in st.session_state:
-        st.session_state.hansard_search_page = 1
-
-    # Search form with pagination info
-    st.info("💡 **Note:** Hansard API limits results. We'll search with multiple terms to get comprehensive results.")
-
-    with st.form("hansard_search_inline"):
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            issue_query = st.text_input("Topic to search for:", placeholder="e.g., climate change, healthcare...")
-        with col2:
-            date_range = st.selectbox("Period", ["Last 6 months", "Last year", "Last 2 years", "All available"])
-
-        # Advanced options
-        with st.expander("🔧 Advanced Options"):
-            max_results_per_term = st.slider("Results per search term", 5, 20, 10, help="More terms = more total results")
-
-        search_button = st.form_submit_button("🔍 Search", type="primary", use_container_width=True)
-
-    if search_button and issue_query:
-        with st.spinner("Generating search terms and searching Hansard..."):
-            # Generate multiple search terms for better coverage
-            search_terms = generate_search_terms(issue_query, selected_mp['name'])
-            st.success(f"🔍 Searching with terms: {', '.join(search_terms)}")
-
-            # Calculate date range
-            start_date = None
-            if date_range == "Last 6 months":
-                start_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
-            elif date_range == "Last year":
-                start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-            elif date_range == "Last 2 years":
-                start_date = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')
-
-            # Search with higher limits and multiple terms
-            results = search_hansard_contributions(
-                selected_mp['id'],
-                search_terms,
-                start_date,
-                datetime.now().strftime('%Y-%m-%d'),
-                max_results_per_term * len(search_terms)  # Multiply by number of terms
-            )
-            st.session_state.hansard_results = results
-
-            if results:
-                st.success(f"✅ Found {len(results)} contributions across {len(search_terms)} search terms!")
-                if len(results) >= max_results_per_term * len(search_terms):
-                    st.warning("⚠️ Results may be limited by API. Try more specific search terms for better targeting.")
-            else:
-                st.warning("No contributions found. Try different terms or expand the date range.")
-
-    # Show results with longer excerpts
-    if st.session_state.hansard_results:
-        st.write(f"**📋 Found {len(st.session_state.hansard_results)} Results:**")
-
-        # Pagination for results
-        results_per_page = 5
-        total_pages = (len(st.session_state.hansard_results) - 1) // results_per_page + 1
-        current_page = st.session_state.get('hansard_display_page', 1)
-
-        if total_pages > 1:
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col1:
-                if current_page > 1:
-                    if st.button("← Prev", key="prev_hansard_page"):
-                        st.session_state.hansard_display_page = current_page - 1
-                        st.rerun()
-            with col2:
-                st.write(f"Page {current_page} of {total_pages}")
-            with col3:
-                if current_page < total_pages:
-                    if st.button("Next →", key="next_hansard_page"):
-                        st.session_state.hansard_display_page = current_page + 1
-                        st.rerun()
-
-        # Show results for current page
-        start_idx = (current_page - 1) * results_per_page
-        end_idx = start_idx + results_per_page
-        page_results = st.session_state.hansard_results[start_idx:end_idx]
-
-        for i, result in enumerate(page_results):
-            actual_idx = start_idx + i
-
-            # Checkbox for selection
-            selected = st.checkbox(
-                f"Select this contribution",
-                value=result['id'] in st.session_state.selected_hansard_items,
-                key=f"hansard_inline_{actual_idx}"
-            )
-
-            if selected and result['id'] not in st.session_state.selected_hansard_items:
-                st.session_state.selected_hansard_items.append(result['id'])
-            elif not selected and result['id'] in st.session_state.selected_hansard_items:
-                st.session_state.selected_hansard_items.remove(result['id'])
-
-            # Show result with longer excerpt
-            st.markdown(f"**{format_hansard_date(result['date'])}** - {result['debate_title']}")
-            st.caption(f"Found by search term: '{result['search_term']}'")
-
-            # Show longer excerpt - up to 600 characters
-            text_to_show = result['full_text'] if result['full_text'] else result['text']
-            if len(text_to_show) > 600:
-                text_to_show = text_to_show[:600] + "..."
-
-            st.write(text_to_show)
-
-            # Add link if available
-            if result.get('url'):
-                st.markdown(f"🔗 [View full speech in Hansard]({result['url']})")
-
-            st.divider()
-
-        # Selection summary and add button
-        selected_count = len(st.session_state.selected_hansard_items)
-        if selected_count > 0:
-            st.info(f"📌 {selected_count} contributions selected across all pages")
-
-            if st.button(f"➕ Add {selected_count} Selected Contributions", type="primary", use_container_width=True):
-                # Add selected items to comments
-                new_comments = []
-                for result in st.session_state.hansard_results:
-                    if result['id'] in st.session_state.selected_hansard_items:
-                        # Use longer text for the biography
-                        full_text = result['full_text'] if result['full_text'] else result['text']
-                        hansard_comment = {
-                            "type": "Parliamentary Remarks",
-                            "url": result.get('url', ''),
-                            "date": result['date'][:10],
-                            "text": f"In {result['debate_title']} on {format_hansard_date(result['date'])}, {selected_mp['name']} said: \"{full_text}\""
-                        }
-                        new_comments.append(hansard_comment)
-
-                if 'hansard_comments_added' not in st.session_state:
-                    st.session_state.hansard_comments_added = []
-                st.session_state.hansard_comments_added.extend(new_comments)
-
-                st.session_state.selected_hansard_items = []
-                st.session_state.hansard_tab_mode = None
-                st.session_state.hansard_display_page = 1
-                st.success(f"✅ Added {len(new_comments)} parliamentary contributions!")
-                st.rerun()
 
 
 def create_hansard_management_inline():
@@ -2246,7 +2087,7 @@ def wizard_step_4_generate():
                 st.rerun()
 
 def search_hansard_contributions(mp_id, search_terms, start_date=None, end_date=None, max_results=20):
-    """Search Hansard API for MP contributions using generated search terms"""
+    """Search both Hansard API and Questions & Statements API for all types of MP contributions"""
     all_results = []
 
     # Set default date range (last 2 years if not specified)
@@ -2255,69 +2096,282 @@ def search_hansard_contributions(mp_id, search_terms, start_date=None, end_date=
     if not end_date:
         end_date = datetime.now().strftime('%Y-%m-%d')
 
-    base_url = "https://hansard-api.parliament.uk"
+    # PART 1: Search Hansard API for spoken contributions and written answers
+    hansard_base_url = "https://hansard-api.parliament.uk"
+    hansard_endpoints = [
+        {
+            'url': f"{hansard_base_url}/search/contributions/Spoken.json",
+            'type': 'Spoken Contribution'
+        },
+        {
+            'url': f"{hansard_base_url}/search/writtenanswers.json",
+            'type': 'Written Answer'
+        }
+    ]
+
+    # Search Hansard API with better timeout and error handling
+    for search_term in search_terms:
+        for endpoint in hansard_endpoints:
+            try:
+                params = {
+                    'queryParameters.searchTerm': search_term,
+                    'queryParameters.memberId': mp_id,
+                    'queryParameters.startDate': start_date,
+                    'queryParameters.endDate': end_date,
+                    'queryParameters.take': 4,  # API max per type
+                    'queryParameters.orderBy': 'SittingDateDesc'
+                }
+
+                # Increased timeout and better error handling
+                response = requests.get(endpoint['url'], params=params, timeout=20)
+
+                if response.status_code == 200:
+                    data = response.json()
+
+                    if 'Results' in data and data['Results']:
+                        for result in data['Results']:
+                            if endpoint['type'] == 'Spoken Contribution':
+                                contribution_ext_id = result.get('ContributionExtId', '')
+                                hansard_url = get_hansard_url(contribution_ext_id)
+
+                                contribution = {
+                                    'id': contribution_ext_id,
+                                    'date': result.get('SittingDate', ''),
+                                    'debate_title': result.get('DebateSection', 'Parliamentary Debate'),
+                                    'text': result.get('ContributionText', ''),
+                                    'full_text': result.get('ContributionTextFull', ''),
+                                    'member_name': result.get('MemberName', ''),
+                                    'hansard_section': result.get('HansardSection', ''),
+                                    'search_term': search_term,
+                                    'contribution_type': endpoint['type'],
+                                    'house': result.get('House', 'Commons'),
+                                    'url': hansard_url
+                                }
+
+                            elif endpoint['type'] == 'Written Answer':
+                                contribution = {
+                                    'id': result.get('Id', result.get('AnswerId', '')),
+                                    'date': result.get('Date', result.get('AnswerDate', '')),
+                                    'debate_title': f"Written Answer: {(result.get('QuestionText', result.get('Question', 'Parliamentary Question'))[:50])}...",
+                                    'text': result.get('AnswerText', result.get('Answer', '')),
+                                    'full_text': result.get('AnswerText', result.get('Answer', '')),
+                                    'member_name': result.get('MemberName', ''),
+                                    'hansard_section': result.get('Department', result.get('AnsweringDepartment', '')),
+                                    'search_term': search_term,
+                                    'contribution_type': endpoint['type'],
+                                    'house': result.get('House', 'Commons'),
+                                    'url': result.get('Url', '')
+                                }
+
+                            # Only add if we have meaningful content and valid ID
+                            if contribution['text'] and len(contribution['text'].strip()) > 30 and contribution['id']:
+                                all_results.append(contribution)
+
+                elif response.status_code == 404:
+                    continue
+                else:
+                    st.warning(f"Hansard API returned status {response.status_code} for {endpoint['type']}")
+
+            except requests.exceptions.Timeout:
+                st.warning(f"Timeout searching Hansard {endpoint['type']} for '{search_term}' - API is slow, continuing with other searches")
+                continue
+            except Exception as e:
+                st.warning(f"Error searching Hansard {endpoint['type']} for '{search_term}': {str(e)}")
+                continue
+
+    # PART 2: Search Questions & Statements API for written questions and written statements
+    questions_base_url = "https://questions-statements-api.parliament.uk"
 
     for search_term in search_terms:
+        # Search Written Questions with better filtering
         try:
-            # Search for spoken contributions
-            url = f"{base_url}/search/contributions/Spoken.json"
-
+            questions_url = f"{questions_base_url}/api/writtenquestions/questions"
             params = {
-                'queryParameters.searchTerm': search_term,
-                'queryParameters.memberId': mp_id,
-                'queryParameters.startDate': start_date,
-                'queryParameters.endDate': end_date,
-                'queryParameters.take': max_results // len(search_terms),  # Distribute results across search terms
-                'queryParameters.orderBy': 'SittingDateDesc'  # Most recent first
+                'askingMemberId': mp_id,
+                'tabledWhenFrom': start_date,
+                'tabledWhenTo': end_date,
+                'take': 50,  # Get more results to filter client-side
+                'house': 'Commons'
+                # Note: Removing searchTerm from API call and filtering client-side instead
             }
 
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(questions_url, params=params, timeout=20)
 
             if response.status_code == 200:
                 data = response.json()
 
-                if 'Results' in data and data['Results']:
-                    for result in data['Results']:
-                        contribution_ext_id = result.get('ContributionExtId', '')
+                if 'results' in data and data['results']:
+                    questions_found = 0
+                    for item in data['results']:
+                        # Stop if we have enough questions for this search term
+                        if questions_found >= 4:
+                            break
 
-                        # Get the Hansard URL for this contribution
-                        hansard_url = get_hansard_url(contribution_ext_id)
+                        question = item.get('value', {})
 
-                        # Create a standardized result object
-                        contribution = {
-                            'id': contribution_ext_id,
-                            'date': result.get('SittingDate', ''),
-                            'debate_title': result.get('DebateSection', 'Unknown Debate'),
-                            'text': result.get('ContributionText', ''),
-                            'full_text': result.get('ContributionTextFull', ''),
-                            'member_name': result.get('MemberName', ''),
-                            'hansard_section': result.get('HansardSection', ''),
-                            'search_term': search_term,
-                            'timecode': result.get('Timecode', ''),
-                            'house': result.get('House', 'Commons'),
-                            'url': hansard_url  # Add the URL
-                        }
+                        question_id = question.get('id', '')
+                        question_text = question.get('questionText', '')
+                        date_tabled = question.get('dateTabled', '')
+                        uin = question.get('uin', '')
+                        answering_body = question.get('answeringBodyName', '')
+                        member_name = ''
 
-                        # Only add if we have meaningful content
-                        if contribution['text'] and len(contribution['text'].strip()) > 50:
+                        # Get member name from asking member object
+                        asking_member = question.get('askingMember', {})
+                        if asking_member:
+                            member_name = asking_member.get('name', asking_member.get('listAs', ''))
+
+                        # CLIENT-SIDE FILTERING: Check if search term appears in question text
+                        if (question_text and len(question_text.strip()) > 30 and question_id and
+                            search_term.lower() in question_text.lower()):
+
+                            # Construct URL for written question
+                            question_url = construct_written_question_url(date_tabled, uin)
+
+                            contribution = {
+                                'id': f"wq_{question_id}",  # Prefix to avoid ID conflicts
+                                'date': date_tabled,
+                                'debate_title': f"Written Question {uin}: {question_text[:50]}...",
+                                'text': question_text,
+                                'full_text': question_text,
+                                'member_name': member_name,
+                                'hansard_section': answering_body,
+                                'search_term': search_term,
+                                'contribution_type': 'Written Question',
+                                'house': 'Commons',
+                                'url': question_url
+                            }
                             all_results.append(contribution)
+                            questions_found += 1
 
-        except Exception as e:
-            st.warning(f"Error searching for '{search_term}': {str(e)}")
+            elif response.status_code != 404:
+                st.warning(f"Questions API returned status {response.status_code} for written questions")
+
+        except requests.exceptions.Timeout:
+            st.warning(f"Timeout searching Questions API for '{search_term}' - API is slow, continuing")
             continue
+        except Exception as e:
+            st.warning(f"Error searching Questions API for '{search_term}': {str(e)}")
+
+        # Search Written Statements with better filtering
+        try:
+            statements_url = f"{questions_base_url}/api/writtenstatements/statements"
+            params = {
+                'members': [mp_id],  # Written statements uses array of member IDs
+                'madeWhenFrom': start_date,
+                'madeWhenTo': end_date,
+                'take': 50,  # Get more results to filter client-side
+                'house': 'Commons'
+                # Note: Removing searchTerm from API call and filtering client-side instead
+            }
+
+            response = requests.get(statements_url, params=params, timeout=20)
+
+            if response.status_code == 200:
+                data = response.json()
+
+                if 'results' in data and data['results']:
+                    statements_found = 0
+                    for item in data['results']:
+                        # Stop if we have enough statements for this search term
+                        if statements_found >= 4:
+                            break
+
+                        statement = item.get('value', {})
+
+                        statement_id = statement.get('id', '')
+                        statement_text = statement.get('text', '')
+                        title = statement.get('title', '')
+                        date_made = statement.get('dateMade', '')
+                        uin = statement.get('uin', '')
+                        answering_body = statement.get('answeringBodyName', '')
+                        member_name = ''
+
+                        # Get member name
+                        member = statement.get('member', {})
+                        if member:
+                            member_name = member.get('name', member.get('listAs', ''))
+
+                        # CLIENT-SIDE FILTERING: Check if search term appears in statement text or title
+                        searchable_text = f"{title} {statement_text}".lower()
+                        if (statement_text and len(statement_text.strip()) > 30 and statement_id and
+                            search_term.lower() in searchable_text):
+
+                            # Construct URL for written statement
+                            statement_url = construct_written_statement_url(date_made, uin)
+
+                            contribution = {
+                                'id': f"ws_{statement_id}",  # Prefix to avoid ID conflicts
+                                'date': date_made,
+                                'debate_title': title or f"Written Statement {uin}",
+                                'text': statement_text,
+                                'full_text': statement_text,
+                                'member_name': member_name,
+                                'hansard_section': answering_body,
+                                'search_term': search_term,
+                                'contribution_type': 'Written Statement',
+                                'house': 'Commons',
+                                'url': statement_url
+                            }
+                            all_results.append(contribution)
+                            statements_found += 1
+
+            elif response.status_code != 404:
+                st.warning(f"Questions API returned status {response.status_code} for written statements")
+
+        except requests.exceptions.Timeout:
+            st.warning(f"Timeout searching Questions API statements for '{search_term}' - API is slow, continuing")
+            continue
+        except Exception as e:
+            st.warning(f"Error searching Questions API statements for '{search_term}': {str(e)}")
 
     # Remove duplicates and sort by date
     seen_ids = set()
     unique_results = []
     for result in all_results:
-        if result['id'] not in seen_ids:
-            seen_ids.add(result['id'])
+        result_id = str(result['id'])
+        if result_id not in seen_ids:
+            seen_ids.add(result_id)
             unique_results.append(result)
 
     # Sort by date (most recent first)
     unique_results.sort(key=lambda x: x['date'], reverse=True)
 
-    return unique_results[:max_results]
+    return unique_results
+
+
+def construct_written_question_url(date_tabled, uin):
+    """Construct URL for written question based on date and UIN"""
+    if not date_tabled or not uin:
+        return ''
+
+    try:
+        # Parse date and format for URL
+        date_obj = datetime.strptime(date_tabled[:10], '%Y-%m-%d')
+        formatted_date = date_obj.strftime('%Y-%m-%d')
+
+        # Construct URL - this is the typical pattern for written questions
+        return f"https://questions-statements.parliament.uk/written-questions/detail/{formatted_date}/{uin}"
+    except:
+        return ''
+
+
+def construct_written_statement_url(date_made, uin):
+    """Construct URL for written statement based on date and UIN"""
+    if not date_made or not uin:
+        return ''
+
+    try:
+        # Parse date and format for URL
+        date_obj = datetime.strptime(date_made[:10], '%Y-%m-%d')
+        formatted_date = date_obj.strftime('%Y-%m-%d')
+
+        # Construct URL - this is the typical pattern for written statements
+        return f"https://questions-statements.parliament.uk/written-statements/detail/{formatted_date}/{uin}"
+    except:
+        return ''
+
+
 
 
 def format_hansard_date(date_string):
@@ -2331,11 +2385,11 @@ def format_hansard_date(date_string):
     return date_string
 
 def hansard_search_interface(mp_name, mp_id):
-    """Create the Hansard search interface"""
+    """Updated Hansard search interface without max results slider"""
     st.subheader("🔍 Search Parliamentary Records")
-    st.write("Search for the MP's parliamentary contributions on specific topics using the Hansard database.")
+    st.write("Search for all types of parliamentary contributions: spoken contributions, written questions, written statements, and written answers.")
 
-    # Initialize session state for Hansard search
+    # Initialize session state
     if 'hansard_results' not in st.session_state:
         st.session_state.hansard_results = []
     if 'selected_hansard_items' not in st.session_state:
@@ -2344,10 +2398,8 @@ def hansard_search_interface(mp_name, mp_id):
         st.session_state.hansard_search_performed = False
     if 'hansard_comments_added' not in st.session_state:
         st.session_state.hansard_comments_added = []
-    if 'show_hansard_success' not in st.session_state:
-        st.session_state.show_hansard_success = False
 
-    # Search form
+    # Improved search form
     with st.form("hansard_search_form"):
         issue_query = st.text_input(
             "What topic would you like to search for?",
@@ -2355,97 +2407,82 @@ def hansard_search_interface(mp_name, mp_id):
             help="Describe the topic or issue you want to find the MP's statements about"
         )
 
-        # Date range selection
-        date_range = st.selectbox(
-            "Time period",
-            ["Last 6 months", "Last year", "Last 2 years", "All available"],
-            index=1
-        )
-
-        # Advanced options in expander
-        with st.expander("Advanced Search Options"):
-            custom_start_date = st.date_input(
-                "Custom start date (optional)",
-                value=None,
-                help="Leave blank to use the time period above"
+        # Precise date range selection
+        col1, col2 = st.columns(2)
+        with col1:
+            start_date = st.date_input(
+                "Start date",
+                value=datetime.now().date() - timedelta(days=365),  # Default to 1 year ago
+                max_value=datetime.now().date(),
+                help="Select the earliest date to search from"
             )
-            custom_end_date = st.date_input(
-                "Custom end date (optional)",
-                value=None,
-                help="Leave blank to use today's date"
+        with col2:
+            end_date = st.date_input(
+                "End date",
+                value=datetime.now().date(),
+                max_value=datetime.now().date(),
+                help="Select the latest date to search to"
             )
 
-            max_results = st.slider("Maximum results", 5, 50, 20)
-
-        search_button = st.form_submit_button("🔍 Search Hansard Records", type="primary")
+        search_button = st.form_submit_button("🔍 Search All Parliamentary Records", type="primary")
 
     if search_button and issue_query:
-        with st.spinner("Generating search terms and searching Hansard..."):
-            # Generate search terms using Claude
-            st.info("🤖 Generating search terms with AI...")
+        if start_date > end_date:
+            st.error("Start date must be before end date")
+            return []
+
+        with st.spinner("Searching all parliamentary records..."):
+            st.info("🤖 Generating optimized search terms...")
             search_terms = generate_search_terms(issue_query, mp_name)
 
             if search_terms:
-                st.success(f"Generated search terms: {', '.join(search_terms)}")
+                st.success(f"🔍 Searching for: {', '.join(search_terms)}")
 
-                # Calculate date range
-                start_date = None
-                end_date = None
+                # Convert dates to strings
+                start_date_str = start_date.strftime('%Y-%m-%d')
+                end_date_str = end_date.strftime('%Y-%m-%d')
 
-                if custom_start_date:
-                    start_date = custom_start_date.strftime('%Y-%m-%d')
-                if custom_end_date:
-                    end_date = custom_end_date.strftime('%Y-%m-%d')
-
-                if not start_date:
-                    if date_range == "Last 6 months":
-                        start_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
-                    elif date_range == "Last year":
-                        start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
-                    elif date_range == "Last 2 years":
-                        start_date = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')
-                    # For "All available", leave start_date as None
-
-                if not end_date:
-                    end_date = datetime.now().strftime('%Y-%m-%d')
-
-                # Search Hansard
-                st.info("🔍 Searching Hansard database...")
-                results = search_hansard_contributions(mp_id, search_terms, start_date, end_date, max_results)
-
+                # Search with improved function
+                results = search_hansard_contributions(mp_id, search_terms, start_date_str, end_date_str, 20)
                 st.session_state.hansard_results = results
                 st.session_state.hansard_search_performed = True
 
                 if results:
-                    st.success(f"Found {len(results)} relevant contributions!")
-                else:
-                    st.warning("No contributions found for this topic. Try different search terms or expand the date range.")
+                    # Show breakdown by type
+                    contributions = [r for r in results if r['contribution_type'] == 'Spoken Contribution']
+                    written_questions = [r for r in results if r['contribution_type'] == 'Written Question']
+                    written_statements = [r for r in results if r['contribution_type'] == 'Written Statement']
+                    written_answers = [r for r in results if r['contribution_type'] == 'Written Answer']
 
-    # Display results if available
+                    st.success(f"✅ Found {len(results)} records: {len(contributions)} spoken, {len(written_questions)} questions, {len(written_statements)} statements, {len(written_answers)} answers")
+                else:
+                    st.warning("No parliamentary records found. Try different search terms or expand the date range.")
+
+    # Display results (rest remains the same but with type indicators)
     if st.session_state.hansard_search_performed and st.session_state.hansard_results:
         st.subheader(f"📋 Search Results ({len(st.session_state.hansard_results)} found)")
 
-        # Selection controls - use a simple row layout instead of columns
-        if st.button("✅ Select All", key="select_all_hansard"):
-            st.session_state.selected_hansard_items = [item['id'] for item in st.session_state.hansard_results]
-            st.rerun()
+        # Selection controls
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("✅ Select All", key="select_all_hansard"):
+                st.session_state.selected_hansard_items = [item['id'] for item in st.session_state.hansard_results]
+                st.rerun()
+        with col2:
+            if st.button("❌ Clear Selection", key="clear_all_hansard"):
+                st.session_state.selected_hansard_items = []
+                st.rerun()
+        with col3:
+            selected_count = len(st.session_state.selected_hansard_items)
+            st.write(f"**Selected: {selected_count}**")
 
-        if st.button("❌ Clear Selection", key="clear_all_hansard"):
-            st.session_state.selected_hansard_items = []
-            st.rerun()
-
-        selected_count = len(st.session_state.selected_hansard_items)
-        st.write(f"**Selected: {selected_count} items**")
-
-        # Display results
+        # Display results with type indicators
         for i, result in enumerate(st.session_state.hansard_results):
             with st.container():
-                # Create checkbox for selection
                 is_selected = result['id'] in st.session_state.selected_hansard_items
 
-                # Use a single column layout to avoid nesting issues
                 selected = st.checkbox(
-                    f"Select this contribution",
+                    f"Select this {result['contribution_type'].lower()}",
                     value=is_selected,
                     key=f"hansard_select_{i}"
                 )
@@ -2455,13 +2492,18 @@ def hansard_search_interface(mp_name, mp_id):
                 elif not selected and result['id'] in st.session_state.selected_hansard_items:
                     st.session_state.selected_hansard_items.remove(result['id'])
 
-                # Result display
+                # Type badge and result display
+                type_badges = {
+                    'Spoken Contribution': '🗣️',
+                    'Written Question': '❓',
+                    'Written Statement': '📄',
+                    'Written Answer': '📝'
+                }
+
+                type_badge = type_badges.get(result['contribution_type'], '📝')
                 result_date = format_hansard_date(result['date'])
 
-                # Header with date and debate
-                st.markdown(f"**{result_date}** - {result['debate_title']}")
-
-                # Show search term that found this result
+                st.markdown(f"**{result_date}** {type_badge} {result['contribution_type']} - {result['debate_title']}")
                 st.caption(f"Found by search term: '{result['search_term']}'")
 
                 # Show contribution text
@@ -2471,50 +2513,32 @@ def hansard_search_interface(mp_name, mp_id):
 
                 st.write(text_to_show)
 
-                # Add link to full Hansard entry if available - avoid nested columns
                 if result.get('url'):
                     st.markdown(f"🔗 [View in Hansard]({result['url']})")
-                else:
-                    st.caption("Link unavailable")
 
-                # Additional metadata
                 if result['hansard_section']:
                     st.caption(f"Section: {result['hansard_section']}")
 
                 st.divider()
 
-        # Add selected items to comments
+        # Add selected items button
         if st.session_state.selected_hansard_items:
-            if st.button(f"➕ Add {len(st.session_state.selected_hansard_items)} Selected Items to Comments", type="primary"):
-                # Convert selected results to comment format
+            if st.button(f"➕ Add {len(st.session_state.selected_hansard_items)} Selected Items", type="primary"):
                 new_comments = []
                 for result in st.session_state.hansard_results:
                     if result['id'] in st.session_state.selected_hansard_items:
                         hansard_comment = {
-                            "type": "Parliamentary Remarks",
-                            "url": result.get('url', ''),  # Include the Hansard URL
+                            "type": result['contribution_type'],
+                            "url": result.get('url', ''),
                             "date": result['date'][:10] if result['date'] else datetime.now().strftime("%Y-%m-%d"),
                             "text": f"In {result['debate_title']} on {format_hansard_date(result['date'])}, {mp_name} said: \"{result['full_text'] if result['full_text'] else result['text']}\""
                         }
                         new_comments.append(hansard_comment)
 
-                # Add to session state
                 st.session_state.hansard_comments_added.extend(new_comments)
-
-                # Show success message
-                st.success(f"✅ Successfully added {len(new_comments)} parliamentary contributions to your comments!")
-                st.session_state.show_hansard_success = True
-
-                # Clear selections after adding
+                st.success(f"✅ Successfully added {len(new_comments)} parliamentary records!")
                 st.session_state.selected_hansard_items = []
                 st.rerun()
-
-    # Show success message if items were just added
-    if st.session_state.show_hansard_success:
-        st.info(f"💡 {len(st.session_state.hansard_comments_added)} Hansard items have been added to your comments. You can view them in the Manual Entry tab.")
-        if st.button("✅ Got it!", key="dismiss_hansard_success"):
-            st.session_state.show_hansard_success = False
-            st.rerun()
 
     return []
 # Cache for API responses to improve performance
