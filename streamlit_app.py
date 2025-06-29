@@ -12,6 +12,7 @@ from difflib import SequenceMatcher
 from functools import lru_cache
 import anthropic
 import base64
+from PIL import Image
 from mp_functions import (
     read_example_bios,
     get_mp_id,
@@ -24,8 +25,10 @@ from mp_functions import (
     search_perplexity
 )
 
+favicon = Image.open("favicon2.png")
+
 # Set page config
-st.set_page_config(page_title="MP Biography Generator", layout="wide")
+st.set_page_config(page_title="MP Biography Generator", page_icon=favicon, layout="wide")
 
 # Create necessary folders
 os.makedirs('uploads', exist_ok=True)
@@ -42,7 +45,7 @@ def get_logo_base64(image_path):
         return None
 
 def inject_custom_css():
-    """Inject custom CSS for professional branding - FIXED BUTTON SELECTORS"""
+    """Inject custom CSS for professional branding - CLEANED UP VERSION"""
     st.markdown("""
     <style>
     /* Import better font */
@@ -53,90 +56,76 @@ def inject_custom_css():
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* TARGET FORM SUBMIT BUTTONS SPECIFICALLY */
-    button[kind="primaryFormSubmit"] {
-        background: linear-gradient(90deg, #224347, #00A199) !important;
-        color: white !important;
-        border: 1px solid #00A199 !important;
-        border-radius: 8px !important;
-        padding: 0.75rem 1.5rem !important;
-        font-weight: 600 !important;
-        font-size: 1rem !important;
-        transition: all 0.2s ease !important;
-        width: 100% !important;
-        min-height: 2.5rem !important;
-        box-shadow: 0 2px 4px rgba(34, 67, 71, 0.2) !important;
+    /* Progress indicator - ULTRA COMPACT VERSION */
+    .progress-section {
+        background: linear-gradient(135deg, #224347 0%, #00A199 100%);
+        color: white;
+        padding: 0.75rem 1rem;  /* Very compact padding */
+        border-radius: 6px;
+        margin-bottom: 0.75rem;
+        box-shadow: 0 1px 4px rgba(34, 67, 71, 0.2);
     }
 
-    button[kind="primaryFormSubmit"]:hover {
-        background: linear-gradient(90deg, #1a3437, #008b85) !important;
-        border-color: #008b85 !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 4px 8px rgba(34, 67, 71, 0.3) !important;
+    .progress-title {
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;  /* Smaller title */
     }
 
-    button[kind="primaryFormSubmit"]:active {
-        transform: translateY(0px) !important;
-        box-shadow: 0 2px 4px rgba(34, 67, 71, 0.2) !important;
+    .progress-steps {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        gap: 0.25rem;
     }
 
-    /* TARGET REGULAR BUTTONS */
-    div.stButton > button:first-child {
-        background: linear-gradient(90deg, #224347, #00A199) !important;
-        color: white !important;
-        border: 1px solid #00A199 !important;
-        border-radius: 8px !important;
-        padding: 0.75rem 1.5rem !important;
-        font-weight: 600 !important;
-        font-size: 0.95rem !important;
-        transition: all 0.2s ease !important;
-        width: 100% !important;
-        margin-bottom: 0.5rem !important;
-        box-shadow: 0 2px 4px rgba(34, 67, 71, 0.2) !important;
+    .progress-step {
+        flex: 1;
+        text-align: center;
+        font-size: 0.7rem;  /* Smaller text */
+        max-width: 25%;
+        line-height: 1.2;  /* Tighter line height */
     }
 
-    div.stButton > button:first-child:hover {
-        background: linear-gradient(90deg, #1a3437, #008b85) !important;
-        border-color: #008b85 !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 4px 8px rgba(34, 67, 71, 0.3) !important;
+    .step-circle {
+        width: 20px;  /* Even smaller circles */
+        height: 20px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        color: rgba(255, 255, 255, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 0.2rem;  /* Minimal margin */
+        font-weight: 600;
+        border: 1px solid rgba(255, 255, 255, 0.3);  /* Thinner border */
+        font-size: 0.7rem;
     }
 
-    /* ALTERNATIVE TARGETING BY DATA-TESTID */
-    button[data-testid="stBaseButton-primaryFormSubmit"] {
-        background: linear-gradient(90deg, #224347, #00A199) !important;
-        color: white !important;
-        border: 1px solid #00A199 !important;
-        border-radius: 8px !important;
-        padding: 0.75rem 1.5rem !important;
-        font-weight: 600 !important;
-        font-size: 1rem !important;
-        transition: all 0.2s ease !important;
-        width: 100% !important;
-        min-height: 2.5rem !important;
-        box-shadow: 0 2px 4px rgba(34, 67, 71, 0.2) !important;
+    .step-circle.active {
+        background: white !important;
+        color: #224347 !important;
+        border-color: white !important;
     }
 
-    button[data-testid="stBaseButton-primaryFormSubmit"]:hover {
-        background: linear-gradient(90deg, #1a3437, #008b85) !important;
-        border-color: #008b85 !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 4px 8px rgba(34, 67, 71, 0.3) !important;
+    .step-circle.completed {
+        background: rgba(255, 255, 255, 0.9) !important;
+        color: #224347 !important;
+        border-color: rgba(255, 255, 255, 0.9) !important;
     }
 
-    /* Input field styling */
-    .stTextInput > div > div > input {
-        border: 2px solid #e6e9ef !important;
-        border-radius: 8px !important;
-        padding: 0.75rem !important;
-        font-size: 1rem !important;
-        transition: border-color 0.2s ease !important;
+    .progress-bar {
+        height: 3px;  /* Very thin progress bar */
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 1.5px;
+        overflow: hidden;
     }
 
-    .stTextInput > div > div > input:focus {
-        border-color: #00A199 !important;
-        box-shadow: 0 0 0 3px rgba(0, 161, 153, 0.1) !important;
-        outline: none !important;
+    .progress-fill {
+        height: 100%;
+        background: white;
+        border-radius: 1.5px;
+        transition: width 0.3s ease;
     }
 
     /* Custom header styling */
@@ -173,6 +162,15 @@ def inject_custom_css():
         font-weight: 600;
     }
 
+    /* Section styling - REMOVE GREY BACKGROUND */
+    .section-container {
+        background: transparent;  /* Changed from #fafafa */
+        border: none;  /* Changed from 1px solid #e6e9ef */
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
     .app-title {
         font-size: 1.4rem;
         font-weight: 600;
@@ -194,66 +192,95 @@ def inject_custom_css():
         color: white;
     }
 
-    /* Login page styling */
-    .login-container {
-        max-width: 400px;
-        margin: 2rem auto;
-        padding: 2rem;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    /* Section styling */
+    .section-container {
+        background: #fafafa;
         border: 1px solid #e6e9ef;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
     }
 
-    .login-header {
-        text-align: center;
-        margin-bottom: 2rem;
-    }
-
-    .login-logo {
-        width: 60px;
-        height: 60px;
-        margin: 0 auto 1rem;
-        background: linear-gradient(135deg, #224347, #00A199);
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: 600;
-        font-size: 0.8rem;
-        text-align: center;
-        line-height: 1.1;
-        border: 2px dashed rgba(255,255,255,0.3);
-    }
-
-    .login-title {
+    .section-header {
         color: #224347;
-        font-size: 1.5rem;
+        font-size: 1.2rem;
         font-weight: 600;
-        margin-bottom: 0.5rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #00A199;
     }
 
-    .login-subtitle {
-        color: #6c757d;
+    /* MP Selection styling */
+    .mp-selected {
+        background: linear-gradient(135deg, #224347 0%, #00A199 100%);
+        color: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+
+    .mp-name {
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+    }
+
+    .mp-details {
+        opacity: 0.9;
         font-size: 0.95rem;
     }
 
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-
-    /* Remove default margins */
-    .block-container {
-        padding-top: 1rem;
+    /* Button styling */
+    button[kind="primaryFormSubmit"] {
+        background: linear-gradient(90deg, #224347, #00A199) !important;
+        color: white !important;
+        border: 1px solid #00A199 !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 1.5rem !important;
+        font-weight: 600 !important;
+        font-size: 1rem !important;
+        transition: all 0.2s ease !important;
+        width: 100% !important;
+        min-height: 2.5rem !important;
+        box-shadow: 0 2px 4px rgba(34, 67, 71, 0.2) !important;
     }
 
-    /* Add these styles to your existing inject_custom_css() function */
+    button[kind="primaryFormSubmit"]:hover {
+        background: linear-gradient(90deg, #1a3437, #008b85) !important;
+        border-color: #008b85 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 8px rgba(34, 67, 71, 0.3) !important;
+    }
 
-    /* TARGETED FIX FOR DOUBLE BORDER ISSUE */
+    div.stButton > button:first-child {
+        background: linear-gradient(90deg, #224347, #00A199) !important;
+        color: white !important;
+        border: 1px solid #00A199 !important;
+        border-radius: 8px !important;
+        padding: 0.75rem 1.5rem !important;
+        font-weight: 600 !important;
+        font-size: 0.95rem !important;
+        transition: all 0.2s ease !important;
+        width: 100% !important;
+        margin-bottom: 0.5rem !important;
+        box-shadow: 0 2px 4px rgba(34, 67, 71, 0.2) !important;
+    }
 
-    /* Keep your original input styling but target more specifically */
+    .step-circle.disabled {
+        background: rgba(255, 255, 255, 0.1) !important;
+        color: rgba(255, 255, 255, 0.3) !important;
+        border-color: rgba(255, 255, 255, 0.2) !important;
+        cursor: not-allowed !important;
+    }
+
+    div.stButton > button:first-child:hover {
+        background: linear-gradient(90deg, #1a3437, #008b85) !important;
+        border-color: #008b85 !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 8px rgba(34, 67, 71, 0.3) !important;
+    }
+
+    /* Input field styling - CONSOLIDATED */
     .stTextInput > div > div > input {
         border: 2px solid #e6e9ef !important;
         border-radius: 8px !important;
@@ -261,15 +288,7 @@ def inject_custom_css():
         font-size: 1rem !important;
         transition: border-color 0.2s ease !important;
         background: white !important;
-        color: #333333 !important;  /* Add this line for dark text */
-    }
-
-    /* Hide Streamlit form helper text */
-    div[data-testid="InputInstructions"],
-    div[class*="InputInstructions"],
-    .stTextInput [class*="helper"],
-    .stTextInput [class*="Helper"] {
-        display: none !important;
+        color: #333333 !important;
     }
 
     .stTextInput > div > div > input:focus {
@@ -278,36 +297,97 @@ def inject_custom_css():
         outline: none !important;
     }
 
-    /* REMOVE border from the root element to prevent double border */
+    /* Remove conflicting borders */
     div[data-testid="stTextInputRootElement"] {
         border: none !important;
         background: transparent !important;
     }
 
-    /* Remove border from base input container */
     div[data-baseweb="base-input"] {
         border: none !important;
         background: transparent !important;
     }
 
-    /* Override any error states */
-    div[data-testid="stTextInputRootElement"][aria-invalid="true"] {
-        border: none !important; /* Remove this border completely */
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    .block-container {
+        padding-top: 1rem;
     }
 
-    /* Remove the conflicting styles */
-    .stTextInput > div > div[data-testid="stTextInputRootElement"] {
-        border: none !important;
-    }
+    /* Mobile responsiveness */
+    @media (max-width: 768px) {
+        .progress-steps {
+            flex-direction: column;
+            gap: 1rem;
+        }
 
-    .stTextInput > div > div[data-testid="stTextInputRootElement"]:focus-within {
-        border: none !important;
-        box-shadow: none !important;
+        .custom-header {
+            padding: 1rem;
+            flex-direction: column;
+            gap: 1rem;
+        }
     }
-
     </style>
-    """, unsafe_allow_html=True)# Replace the test_hansard_api() function with this simplified version:
-#
+    """, unsafe_allow_html=True)#
+
+def force_css_reload():
+    """Force CSS to reload properly"""
+    # Force CSS injection with a unique key
+    st.markdown(f"""
+    <style id="custom-css-{hash('unique')}">
+    /* Force reload by adding unique identifier */
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Call your CSS injection
+    inject_custom_css()
+
+
+def debug_empty_containers():
+    """Debug function to identify empty containers"""
+    st.write("**DEBUG: Looking for empty containers...**")
+
+    # Check if you have any empty containers
+    st.markdown("""
+    <div style="border: 2px solid red; padding: 10px; margin: 10px;">
+        DEBUG: This should show as a red border box
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def debug_css():
+    """Debug function to test CSS"""
+    st.markdown("""
+    <div style="background: red; color: white; padding: 1rem;">
+        TEST: If you see this with red background, basic CSS works
+    </div>
+
+    <div class="progress-section">
+        <div class="progress-title">TEST: If you see this styled, progress CSS works</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def create_mp_selection_section():
+    """Clean MP selection without grey boxes"""
+
+    selected_mp = st.session_state.get('selected_mp')
+
+    if selected_mp:
+        # Clean, styled display without containers
+        st.success(f"**{selected_mp['name']}** ({selected_mp['party']}) - {selected_mp['constituency']}")
+
+        if st.button("🔄 Change MP Selection", key="change_mp_clean"):
+            st.session_state.selected_mp = None
+            st.session_state.mp_search_query = ''
+            st.session_state.show_suggestions = False
+            st.session_state.validation_result = None
+            st.rerun()
+    else:
+        # Show MP search interface
+        mp_name_input_with_validation()
 
 def styled_login_page():
     """Complete replacement for the login section with restructured layout"""
@@ -354,6 +434,437 @@ def styled_login_page():
                     st.rerun()
                 else:
                     st.error("Invalid username or password")
+
+
+def generate_biography_flow(selected_mp, user_input, comments):
+    """Handle the complete biography generation flow with progress - FIXED KEYS"""
+
+    # Reset generation flag with different name
+    st.session_state.generation_cancelled = False
+
+    # Create progress container
+    progress_container = st.container()
+
+    with progress_container:
+        # Cancel button with unique key
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("❌ Cancel", type="secondary", key="cancel_bio_generation"):
+                st.session_state.generation_cancelled = True
+                st.warning("Generation cancelled.")
+                return
+
+        # Progress tracking
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        details_expander = st.expander("📋 Generation Details", expanded=False)
+
+        try:
+            mp_name = selected_mp['name']
+            mp_id = selected_mp['id']
+
+            # Step 1: Read example biographies (10%)
+            status_text.text('📚 Reading example biographies...')
+            progress_bar.progress(10)
+
+            if st.session_state.generation_cancelled:
+                return
+
+            with details_expander:
+                st.write("✅ Loading example biography templates")
+
+            examples = read_example_bios()
+
+            # Step 2: Get verified parliamentary positions (25%)
+            status_text.text('🏛️ Fetching verified parliamentary positions...')
+            progress_bar.progress(25)
+
+            if st.session_state.generation_cancelled:
+                return
+
+            verified_positions = None
+            try:
+                verified_positions = get_verified_positions(mp_id)
+                with details_expander:
+                    if verified_positions:
+                        st.write("✅ Retrieved parliamentary API data")
+                        if verified_positions.get('current_committees'):
+                            st.write(f"  - Found {len(verified_positions['current_committees'])} current committee memberships")
+                        if verified_positions.get('current_roles'):
+                            st.write(f"  - Found {len(verified_positions['current_roles'])} current government/opposition roles")
+                    else:
+                        st.write("⚠️ No parliamentary API data available")
+            except Exception as e:
+                with details_expander:
+                    st.write(f"⚠️ Parliament API error: {str(e)}")
+
+            # Step 3: Get Wikipedia data (45%)
+            status_text.text('📖 Fetching Wikipedia information...')
+            progress_bar.progress(45)
+
+            if st.session_state.generation_cancelled:
+                return
+
+            wiki_data = None
+            wiki_url = None
+            try:
+                wiki_data = get_wiki_data_verified(selected_mp['name'], selected_mp['constituency'])
+                if wiki_data:
+                    wiki_url = get_wiki_url_verified(selected_mp['name'], selected_mp['constituency'])
+                    with details_expander:
+                        st.write(f"✅ Wikipedia data retrieved ({len(wiki_data)} characters)")
+                else:
+                    with details_expander:
+                        st.write("⚠️ No verified Wikipedia page found")
+            except Exception as e:
+                with details_expander:
+                    st.write(f"⚠️ Wikipedia error: {str(e)}")
+
+            # Step 4: Prepare input content (60%)
+            status_text.text('📝 Preparing biography content...')
+            progress_bar.progress(60)
+
+            if st.session_state.generation_cancelled:
+                return
+
+            # Combine all input sources
+            input_content = user_input if user_input else ""
+
+            if not input_content and wiki_data:
+                input_content = wiki_data
+
+            if not input_content:
+                st.error("❌ No information found for this MP. Please add additional information and try again.")
+                return
+
+            with details_expander:
+                st.write(f"✅ Content prepared: {len(input_content)} characters")
+                if comments:
+                    st.write(f"✅ Including {len(comments)} additional comments")
+
+            # Step 5: Generate biography with Claude (80%)
+            status_text.text('🤖 Generating biography with Claude AI...')
+            progress_bar.progress(80)
+
+            if st.session_state.generation_cancelled:
+                return
+
+            # Get length setting
+            length_setting = st.session_state.get('length_setting', 'medium')
+
+            with details_expander:
+                st.write(f"✅ Generating {length_setting} biography...")
+
+            biography = generate_biography(
+                mp_name,
+                input_content,
+                examples,
+                verified_positions,
+                comments,
+                length_setting
+            )
+
+            # Step 6: Save biography (95%)
+            status_text.text('💾 Saving biography...')
+            progress_bar.progress(95)
+
+            if st.session_state.generation_cancelled:
+                return
+
+            saved_path = save_biography(
+                mp_name,
+                biography,
+                comments,
+                has_pdf=False,
+                has_api_data=bool(verified_positions),
+                has_wiki_data=bool(wiki_data),
+                wiki_url=wiki_url
+            )
+
+            # Step 7: Complete (100%)
+            progress_bar.progress(100)
+            status_text.text('✅ Biography generation complete!')
+
+            # Mark as generated for progress indicator
+            st.session_state.biography_generated = True
+
+            # Prepare file for download
+            with open(saved_path, 'rb') as file:
+                bio_bytes = file.read()
+
+            # Success message and download
+            st.success(f'🎉 {length_setting.title()} biography generated successfully!')
+
+            # Download button
+            st.download_button(
+                label=f"📥 Download {length_setting.title()} Biography",
+                data=bio_bytes,
+                file_name=f"{mp_name}_{length_setting}_biography.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                type="primary",
+                use_container_width=True
+            )
+
+            # Show generation summary
+            with st.expander("📊 Generation Summary", expanded=True):
+                st.write("**Data Sources Used:**")
+                if user_input:
+                    st.write("✅ User-provided information")
+                if verified_positions:
+                    st.write("✅ Parliament API data")
+                if wiki_data:
+                    st.write("✅ Wikipedia information")
+                if comments:
+                    st.write(f"✅ {len(comments)} additional comments")
+
+                st.write(f"**Biography Length:** {length_setting.title()}")
+                st.write(f"**Generated:** {datetime.now().strftime('%d %B %Y at %H:%M')}")
+
+        except Exception as e:
+            st.error(f"❌ Generation failed: {str(e)}")
+            with details_expander:
+                st.write(f"❌ Error details: {str(e)}")
+            # Reset generation flag
+            st.session_state.biography_generated = False
+
+def create_enhanced_sidebar():
+    """Enhanced sidebar with parliamentary positions and status"""
+    with st.sidebar:
+        # Account section
+        st.header("👤 Account")
+        st.write(f"Welcome, **{st.session_state.get('name', 'User')}**")
+        if st.button('🚪 Logout', key="logout_enhanced"):
+            st.session_state.authenticated = False
+            st.rerun()
+
+        st.divider()
+
+        # Selected MP Info & Verified Positions
+        selected_mp = st.session_state.get('selected_mp')
+        if selected_mp:
+            st.header("🏛️ Selected MP")
+            st.write(f"**{selected_mp['name']}**")
+            st.write(f"{selected_mp['party']} • {selected_mp['constituency']}")
+
+            # Get and display verified positions
+            with st.spinner("Loading parliamentary data..."):
+                try:
+                    verified_positions = get_verified_positions(selected_mp['id'])
+                    if verified_positions:
+                        st.subheader("Current Positions")
+
+                        # Current committees
+                        if verified_positions.get('current_committees'):
+                            st.write("**Committee Memberships:**")
+                            for committee in verified_positions['current_committees'][:3]:  # Show max 3
+                                st.write(f"• {committee['name']}")
+                            if len(verified_positions['current_committees']) > 3:
+                                st.write(f"• ... and {len(verified_positions['current_committees']) - 3} more")
+
+                        # Current roles
+                        if verified_positions.get('current_roles'):
+                            st.write("**Government/Opposition Roles:**")
+                            for role in verified_positions['current_roles']:
+                                st.write(f"• {role['name']}")
+
+                        if not verified_positions.get('current_committees') and not verified_positions.get('current_roles'):
+                            st.info("No current official positions")
+
+                    else:
+                        st.info("No parliamentary data available")
+                except Exception as e:
+                    st.warning("Could not load parliamentary data")
+
+            st.divider()
+
+        # Biography Status
+        st.header("📊 Biography Status")
+
+        # Data sources
+        st.write("**Available Data Sources:**")
+        sources = []
+
+        # User input
+        if st.session_state.get('additional_info', '').strip():
+            sources.append("✅ User information")
+        else:
+            sources.append("○ User information")
+
+        # Hansard comments
+        hansard_count = len(st.session_state.get('hansard_comments_added', []))
+        if hansard_count > 0:
+            sources.append(f"✅ {hansard_count} Hansard records")
+        else:
+            sources.append("○ Hansard records")
+
+        # Manual comments
+        manual_count = len(st.session_state.get('manual_comments_added', []))
+        if manual_count > 0:
+            sources.append(f"✅ {manual_count} manual comments")
+        else:
+            sources.append("○ Manual comments")
+
+        # Parliament API
+        if selected_mp:
+            sources.append("✅ Parliament API")
+        else:
+            sources.append("○ Parliament API")
+
+        # Wikipedia
+        sources.append("✅ Wikipedia (auto)")
+
+        for source in sources:
+            st.write(source)
+
+        st.divider()
+
+        # API Status
+        st.header("🔗 API Status")
+
+        # Anthropic
+        st.write("✅ **Claude AI:** Ready")
+
+        # Hansard API
+        try:
+            hansard_test = requests.get("https://hansard-api.parliament.uk/overview/firstyear.json", timeout=2)
+            if hansard_test.status_code == 200:
+                st.write("✅ **Hansard API:** Available")
+            else:
+                st.write("⚠️ **Hansard API:** Limited")
+        except:
+            st.write("❌ **Hansard API:** Unavailable")
+
+        # Parliament API
+        if selected_mp:
+            st.write("✅ **Parliament API:** Connected")
+        else:
+            st.write("○ **Parliament API:** Waiting for MP")
+
+        st.divider()
+
+        # Quick Actions
+        st.header("⚡ Quick Actions")
+
+        if st.button("🗑️ Clear All Data", key="clear_all_data"):
+            # Clear all user data
+            keys_to_clear = [
+                'selected_mp', 'mp_search_query', 'show_suggestions',
+                'validation_result', 'hansard_comments_added',
+                'manual_comments_added', 'additional_info', 'biography_generated'
+            ]
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
+
+            # Clear cache
+            cached_search_mps.cache_clear()
+            st.success("All data cleared!")
+            st.rerun()
+
+        if st.button("🔄 Clear Cache", key="clear_cache_enhanced"):
+            cached_search_mps.cache_clear()
+            st.success("Cache cleared!")
+
+def create_manual_comments_section():
+    """Manual comments section - separate interface"""
+    st.subheader("💬 Add Manual Comments")
+
+    # Back button
+    if st.button("← Back to Actions", key="back_from_manual_comments"):
+        st.session_state.show_manual_comments = False
+        st.rerun()
+
+    st.write("Add comments or statements from sources other than parliamentary records.")
+
+    # Initialize session state
+    if 'manual_comments_added' not in st.session_state:
+        st.session_state.manual_comments_added = []
+    if 'manual_comment_count' not in st.session_state:
+        st.session_state.manual_comment_count = 1
+
+    # Show existing comments
+    existing_comments = st.session_state.get('manual_comments_added', [])
+    if existing_comments:
+        st.write(f"**📋 Added Comments ({len(existing_comments)}):**")
+
+        for i, comment in enumerate(existing_comments):
+            with st.container():
+                col1, col2 = st.columns([4, 1])
+
+                with col1:
+                    st.write(f"**{i+1}. {comment['type']}** ({comment['date']})")
+                    if comment.get('url'):
+                        st.markdown(f"🔗 [Source]({comment['url']})")
+
+                    preview = comment['text'][:150] + "..." if len(comment['text']) > 150 else comment['text']
+                    st.write(preview)
+
+                with col2:
+                    if st.button("🗑️", key=f"remove_manual_{i}", help="Remove this comment"):
+                        st.session_state.manual_comments_added.pop(i)
+                        st.rerun()
+
+                st.divider()
+
+    # Add new comment form
+    st.write("**➕ Add New Comment:**")
+
+    with st.form("manual_comment_form"):
+        comment_type = st.selectbox(
+            "Source Type",
+            options=[
+                "Social Media Post",
+                "Written Question",
+                "Interview/Speech",
+                "Press Release",
+                "Newsletter/Blog",
+                "Other"
+            ]
+        )
+
+        comment_url = st.text_input(
+            "Source URL (Optional)",
+            placeholder="https://..."
+        )
+
+        comment_date = st.date_input(
+            "Date of Comment",
+            value=datetime.now().date()
+        )
+
+        comment_text = st.text_area(
+            "Comment Text",
+            height=120,
+            placeholder="Enter the comment or statement here..."
+        )
+
+        submit_comment = st.form_submit_button("➕ Add Comment", type="primary", use_container_width=True)
+
+        if submit_comment and comment_text:
+            new_comment = {
+                "type": comment_type,
+                "url": comment_url,
+                "date": comment_date.strftime("%Y-%m-%d"),
+                "text": comment_text
+            }
+
+            st.session_state.manual_comments_added.append(new_comment)
+            st.success("✅ Comment added!")
+            st.rerun()
+
+    # Actions
+    if existing_comments:
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Clear All", key="clear_all_manual"):
+                st.session_state.manual_comments_added = []
+                st.success("All manual comments cleared!")
+                st.rerun()
+        with col2:
+            if st.button("✅ Done", key="done_manual_comments", type="primary"):
+                st.session_state.show_manual_comments = False
+                st.rerun()
+
 
 def test_hansard_api_simple():
     """Simplified test function to debug Hansard API issues - no expanders"""
@@ -506,6 +1017,303 @@ def get_hansard_url(contribution_ext_id):
 
     return None
 # NEW FUNCTIONS FOR HANSARD SEARCH
+#
+#
+def create_configuration_section():
+    """Clean configuration section"""
+    st.subheader("Biography Configuration")
+
+    # Length selection
+    length_options = ["Brief", "Standard", "Comprehensive"]
+    selected_length = st.selectbox("Biography Length:", length_options, index=1)
+    st.session_state.length_setting = selected_length.lower()
+
+    # Show description
+    descriptions = {
+        "Brief": "📝 Essential information only (2-3 short paragraphs)",
+        "Standard": "📄 Comprehensive biography (default)",
+        "Comprehensive": "📚 Extended detail with additional sections"
+    }
+    st.info(descriptions[selected_length])
+
+    # Additional info
+    st.text_area("Additional Information (Optional):", key="additional_info", height=100,
+                placeholder="Add specific information about the MP's recent work, policy positions, etc.")
+
+def create_hansard_search_section():
+    """Hansard search interface integrated into main app"""
+    st.subheader("🔍 Search Parliamentary Records")
+
+    selected_mp = st.session_state.get('selected_mp')
+    if not selected_mp:
+        st.error("No MP selected")
+        return
+
+    # Back button
+    if st.button("← Back to Actions", key="back_from_hansard"):
+        st.session_state.show_hansard_search = False
+        st.rerun()
+
+    st.write(f"Search for **{selected_mp['name']}'s** parliamentary contributions on specific topics.")
+
+    # Initialize session state for Hansard search
+    if 'hansard_results' not in st.session_state:
+        st.session_state.hansard_results = []
+    if 'selected_hansard_items' not in st.session_state:
+        st.session_state.selected_hansard_items = []
+    if 'hansard_search_performed' not in st.session_state:
+        st.session_state.hansard_search_performed = False
+    if 'hansard_comments_added' not in st.session_state:
+        st.session_state.hansard_comments_added = []
+
+    # Search form
+    with st.form("hansard_search_form_main"):
+        issue_query = st.text_input(
+            "What topic would you like to search for?",
+            placeholder="e.g., climate change, healthcare, education funding, housing policy...",
+            help="Describe the topic or issue you want to find the MP's statements about"
+        )
+
+        # Date range selection
+        col1, col2 = st.columns(2)
+        with col1:
+            date_range = st.selectbox(
+                "Time period",
+                ["Last 6 months", "Last year", "Last 2 years", "All available"],
+                index=1
+            )
+        with col2:
+            max_results = st.slider("Maximum results", 5, 30, 15)
+
+        search_button = st.form_submit_button("🔍 Search Hansard Records", type="primary", use_container_width=True)
+
+    if search_button and issue_query:
+        with st.spinner("Generating search terms and searching Hansard..."):
+            # Generate search terms using Claude
+            search_terms = generate_search_terms(issue_query, selected_mp['name'])
+
+            if search_terms:
+                st.success(f"Generated search terms: {', '.join(search_terms)}")
+
+                # Calculate date range
+                start_date = None
+                end_date = datetime.now().strftime('%Y-%m-%d')
+
+                if date_range == "Last 6 months":
+                    start_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
+                elif date_range == "Last year":
+                    start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+                elif date_range == "Last 2 years":
+                    start_date = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')
+
+                # Search Hansard
+                results = search_hansard_contributions(selected_mp['id'], search_terms, start_date, end_date, max_results)
+
+                st.session_state.hansard_results = results
+                st.session_state.hansard_search_performed = True
+
+                if results:
+                    st.success(f"Found {len(results)} relevant contributions!")
+                else:
+                    st.warning("No contributions found for this topic. Try different search terms or expand the date range.")
+
+    # Display results if available
+    if st.session_state.hansard_search_performed and st.session_state.hansard_results:
+        st.subheader(f"📋 Search Results ({len(st.session_state.hansard_results)} found)")
+
+        # Selection controls
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("✅ Select All", key="select_all_hansard_main"):
+                st.session_state.selected_hansard_items = [item['id'] for item in st.session_state.hansard_results]
+                st.rerun()
+        with col2:
+            if st.button("❌ Clear Selection", key="clear_all_hansard_main"):
+                st.session_state.selected_hansard_items = []
+                st.rerun()
+        with col3:
+            selected_count = len(st.session_state.selected_hansard_items)
+            st.write(f"**Selected: {selected_count}**")
+
+        # Display results
+        for i, result in enumerate(st.session_state.hansard_results):
+            with st.container():
+                # Checkbox for selection
+                is_selected = result['id'] in st.session_state.selected_hansard_items
+
+                selected = st.checkbox(
+                    f"Select this contribution",
+                    value=is_selected,
+                    key=f"hansard_select_main_{i}"
+                )
+
+                if selected and result['id'] not in st.session_state.selected_hansard_items:
+                    st.session_state.selected_hansard_items.append(result['id'])
+                elif not selected and result['id'] in st.session_state.selected_hansard_items:
+                    st.session_state.selected_hansard_items.remove(result['id'])
+
+                # Result display
+                result_date = format_hansard_date(result['date'])
+                st.markdown(f"**{result_date}** - {result['debate_title']}")
+                st.caption(f"Found by search term: '{result['search_term']}'")
+
+                # Show contribution text
+                text_to_show = result['full_text'] if result['full_text'] else result['text']
+                if len(text_to_show) > 400:
+                    text_to_show = text_to_show[:400] + "..."
+
+                st.write(text_to_show)
+
+                # Add link if available
+                if result.get('url'):
+                    st.markdown(f"🔗 [View in Hansard]({result['url']})")
+
+                st.divider()
+
+        # Add selected items to comments
+        if st.session_state.selected_hansard_items:
+            if st.button(f"➕ Add {len(st.session_state.selected_hansard_items)} Selected Items",
+                        type="primary", key="add_hansard_to_comments", use_container_width=True):
+                # Convert selected results to comment format
+                new_comments = []
+                for result in st.session_state.hansard_results:
+                    if result['id'] in st.session_state.selected_hansard_items:
+                        hansard_comment = {
+                            "type": "Parliamentary Remarks",
+                            "url": result.get('url', ''),
+                            "date": result['date'][:10] if result['date'] else datetime.now().strftime("%Y-%m-%d"),
+                            "text": f"In {result['debate_title']} on {format_hansard_date(result['date'])}, {selected_mp['name']} said: \"{result['full_text'] if result['full_text'] else result['text']}\""
+                        }
+                        new_comments.append(hansard_comment)
+
+                # Add to session state
+                if 'hansard_comments_added' not in st.session_state:
+                    st.session_state.hansard_comments_added = []
+                st.session_state.hansard_comments_added.extend(new_comments)
+
+                st.success(f"✅ Added {len(new_comments)} parliamentary contributions!")
+
+                # Clear selections and hide search
+                st.session_state.selected_hansard_items = []
+                st.session_state.show_hansard_search = False
+                st.rerun()
+
+def create_hansard_management_section():
+    """Manage added Hansard comments"""
+    st.subheader("📋 Manage Hansard Comments")
+
+    # Back button
+    if st.button("← Back to Actions", key="back_from_hansard_mgmt"):
+        st.session_state.show_hansard_management = False
+        st.rerun()
+
+    hansard_comments = st.session_state.get('hansard_comments_added', [])
+
+    if not hansard_comments:
+        st.info("No Hansard comments added yet.")
+        return
+
+    st.write(f"You have **{len(hansard_comments)}** parliamentary contributions added:")
+
+    # Display each comment with option to remove
+    for i, comment in enumerate(hansard_comments):
+        with st.container():
+            col1, col2 = st.columns([4, 1])
+
+            with col1:
+                st.write(f"**{i+1}. {comment['type']}** ({comment['date']})")
+                if comment.get('url'):
+                    st.markdown(f"🔗 [View in Hansard]({comment['url']})")
+
+                # Show preview of text
+                preview_text = comment['text'][:200] + "..." if len(comment['text']) > 200 else comment['text']
+                st.write(preview_text)
+
+            with col2:
+                if st.button("🗑️", key=f"remove_hansard_{i}", help="Remove this comment"):
+                    st.session_state.hansard_comments_added.pop(i)
+                    st.rerun()
+
+            st.divider()
+
+    # Clear all button
+    if st.button("🗑️ Clear All Hansard Comments", key="clear_all_hansard_comments", type="secondary"):
+        st.session_state.hansard_comments_added = []
+        st.success("All Hansard comments cleared!")
+        st.rerun()
+
+
+def create_actions_section():
+    """Actions section with Hansard search and generation"""
+    selected_mp = st.session_state.get('selected_mp')
+
+    if not selected_mp:
+        st.warning("Please select an MP first")
+        return
+
+    # Step 1: Hansard Search (Optional)
+    st.write("**Step 1: Search Parliamentary Records (Optional)**")
+    st.write("Find the MP's statements on specific topics from Hansard database.")
+
+    if st.button("🔍 Search Hansard Records", type="secondary", key="start_hansard_search", use_container_width=True):
+        st.session_state.show_hansard_search = True
+        st.rerun()
+
+    # Show Hansard count if any added
+    hansard_count = len(st.session_state.get('hansard_comments_added', []))
+    if hansard_count > 0:
+        st.success(f"✅ {hansard_count} parliamentary contributions added")
+
+        # Option to view/manage Hansard comments
+        if st.button("📋 View Hansard Comments", key="view_hansard", use_container_width=True):
+            st.session_state.show_hansard_management = True
+            st.rerun()
+
+    st.divider()
+
+    # Step 2: Manual Comments (Optional)
+    st.write("**Step 2: Add Manual Comments (Optional)**")
+    st.write("Add comments from other sources like social media, interviews, etc.")
+
+    if st.button("💬 Add Manual Comments", type="secondary", key="start_manual_comments", use_container_width=True):
+        st.session_state.show_manual_comments = True
+        st.rerun()
+
+    # Show manual comment count
+    manual_count = len(st.session_state.get('manual_comments_added', []))
+    if manual_count > 0:
+        st.success(f"✅ {manual_count} manual comments added")
+
+    st.divider()
+
+    # Step 3: Generate Biography
+    st.write("**Step 3: Generate Biography**")
+
+    # Show data summary
+    data_summary = []
+    user_input = st.session_state.get('additional_info', '').strip()
+
+    if user_input:
+        data_summary.append("User-provided information")
+    if hansard_count > 0:
+        data_summary.append(f"{hansard_count} Hansard contributions")
+    if manual_count > 0:
+        data_summary.append(f"{manual_count} manual comments")
+
+    if data_summary:
+        st.info(f"📊 Ready to generate with: {', '.join(data_summary)}")
+    else:
+        st.info("📊 Will use Parliament API and Wikipedia data")
+
+    # Generation button
+    if st.button("🚀 Generate Biography", type="primary", key="generate_biography_main", use_container_width=True):
+        # Collect all comments
+        all_comments = st.session_state.get('hansard_comments_added', []).copy()
+        all_comments.extend(st.session_state.get('manual_comments_added', []))
+
+        # Start generation flow
+        generate_biography_flow(selected_mp, user_input, all_comments)
+
 
 def generate_search_terms(issue_description, mp_name):
     """Use Claude Haiku to generate search terms for Hansard API"""
@@ -553,6 +1361,854 @@ Now generate search terms for: {issue_description}"""
         st.error(f"Error generating search terms: {str(e)}")
         # Fallback to basic search term
         return [issue_description]
+
+
+
+def create_custom_header():
+    """Custom branded header to replace st.title"""
+    user_name = st.session_state.get('name', 'User')
+
+    st.markdown(f"""
+    <div class="custom-header">
+        <div class="header-left">
+            <div class="company-logo">YOUR<br>LOGO</div>
+            <div class="app-title">MP Biography Generator</div>
+        </div>
+        <div class="header-right">
+            Welcome, {user_name} |
+            <a href="javascript:void(0)" onclick="if(confirm('Are you sure you want to logout?')) {{
+                window.location.reload();
+            }}">Logout</a>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def create_hansard_search_inline():
+    """Compact Hansard search with longer excerpts and pagination"""
+    selected_mp = st.session_state.get('selected_mp')
+
+    if st.button("← Close Search", key="close_hansard_search"):
+        st.session_state.hansard_tab_mode = None
+        st.rerun()
+
+    # Initialize session state
+    if 'hansard_results' not in st.session_state:
+        st.session_state.hansard_results = []
+    if 'selected_hansard_items' not in st.session_state:
+        st.session_state.selected_hansard_items = []
+    if 'hansard_search_page' not in st.session_state:
+        st.session_state.hansard_search_page = 1
+
+    # Search form with pagination info
+    st.info("💡 **Note:** Hansard API limits results. We'll search with multiple terms to get comprehensive results.")
+
+    with st.form("hansard_search_inline"):
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            issue_query = st.text_input("Topic to search for:", placeholder="e.g., climate change, healthcare...")
+        with col2:
+            date_range = st.selectbox("Period", ["Last 6 months", "Last year", "Last 2 years", "All available"])
+
+        # Advanced options
+        with st.expander("🔧 Advanced Options"):
+            max_results_per_term = st.slider("Results per search term", 5, 20, 10, help="More terms = more total results")
+
+        search_button = st.form_submit_button("🔍 Search", type="primary", use_container_width=True)
+
+    if search_button and issue_query:
+        with st.spinner("Generating search terms and searching Hansard..."):
+            # Generate multiple search terms for better coverage
+            search_terms = generate_search_terms(issue_query, selected_mp['name'])
+            st.success(f"🔍 Searching with terms: {', '.join(search_terms)}")
+
+            # Calculate date range
+            start_date = None
+            if date_range == "Last 6 months":
+                start_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
+            elif date_range == "Last year":
+                start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+            elif date_range == "Last 2 years":
+                start_date = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')
+
+            # Search with higher limits and multiple terms
+            results = search_hansard_contributions(
+                selected_mp['id'],
+                search_terms,
+                start_date,
+                datetime.now().strftime('%Y-%m-%d'),
+                max_results_per_term * len(search_terms)  # Multiply by number of terms
+            )
+            st.session_state.hansard_results = results
+
+            if results:
+                st.success(f"✅ Found {len(results)} contributions across {len(search_terms)} search terms!")
+                if len(results) >= max_results_per_term * len(search_terms):
+                    st.warning("⚠️ Results may be limited by API. Try more specific search terms for better targeting.")
+            else:
+                st.warning("No contributions found. Try different terms or expand the date range.")
+
+    # Show results with longer excerpts
+    if st.session_state.hansard_results:
+        st.write(f"**📋 Found {len(st.session_state.hansard_results)} Results:**")
+
+        # Pagination for results
+        results_per_page = 5
+        total_pages = (len(st.session_state.hansard_results) - 1) // results_per_page + 1
+        current_page = st.session_state.get('hansard_display_page', 1)
+
+        if total_pages > 1:
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col1:
+                if current_page > 1:
+                    if st.button("← Prev", key="prev_hansard_page"):
+                        st.session_state.hansard_display_page = current_page - 1
+                        st.rerun()
+            with col2:
+                st.write(f"Page {current_page} of {total_pages}")
+            with col3:
+                if current_page < total_pages:
+                    if st.button("Next →", key="next_hansard_page"):
+                        st.session_state.hansard_display_page = current_page + 1
+                        st.rerun()
+
+        # Show results for current page
+        start_idx = (current_page - 1) * results_per_page
+        end_idx = start_idx + results_per_page
+        page_results = st.session_state.hansard_results[start_idx:end_idx]
+
+        for i, result in enumerate(page_results):
+            actual_idx = start_idx + i
+
+            # Checkbox for selection
+            selected = st.checkbox(
+                f"Select this contribution",
+                value=result['id'] in st.session_state.selected_hansard_items,
+                key=f"hansard_inline_{actual_idx}"
+            )
+
+            if selected and result['id'] not in st.session_state.selected_hansard_items:
+                st.session_state.selected_hansard_items.append(result['id'])
+            elif not selected and result['id'] in st.session_state.selected_hansard_items:
+                st.session_state.selected_hansard_items.remove(result['id'])
+
+            # Show result with longer excerpt
+            st.markdown(f"**{format_hansard_date(result['date'])}** - {result['debate_title']}")
+            st.caption(f"Found by search term: '{result['search_term']}'")
+
+            # Show longer excerpt - up to 600 characters
+            text_to_show = result['full_text'] if result['full_text'] else result['text']
+            if len(text_to_show) > 600:
+                text_to_show = text_to_show[:600] + "..."
+
+            st.write(text_to_show)
+
+            # Add link if available
+            if result.get('url'):
+                st.markdown(f"🔗 [View full speech in Hansard]({result['url']})")
+
+            st.divider()
+
+        # Selection summary and add button
+        selected_count = len(st.session_state.selected_hansard_items)
+        if selected_count > 0:
+            st.info(f"📌 {selected_count} contributions selected across all pages")
+
+            if st.button(f"➕ Add {selected_count} Selected Contributions", type="primary", use_container_width=True):
+                # Add selected items to comments
+                new_comments = []
+                for result in st.session_state.hansard_results:
+                    if result['id'] in st.session_state.selected_hansard_items:
+                        # Use longer text for the biography
+                        full_text = result['full_text'] if result['full_text'] else result['text']
+                        hansard_comment = {
+                            "type": "Parliamentary Remarks",
+                            "url": result.get('url', ''),
+                            "date": result['date'][:10],
+                            "text": f"In {result['debate_title']} on {format_hansard_date(result['date'])}, {selected_mp['name']} said: \"{full_text}\""
+                        }
+                        new_comments.append(hansard_comment)
+
+                if 'hansard_comments_added' not in st.session_state:
+                    st.session_state.hansard_comments_added = []
+                st.session_state.hansard_comments_added.extend(new_comments)
+
+                st.session_state.selected_hansard_items = []
+                st.session_state.hansard_tab_mode = None
+                st.session_state.hansard_display_page = 1
+                st.success(f"✅ Added {len(new_comments)} parliamentary contributions!")
+                st.rerun()
+
+
+def create_hansard_management_inline():
+    """Compact Hansard management for tab interface"""
+    if st.button("← Close Management", key="close_hansard_mgmt"):
+        st.session_state.hansard_tab_mode = None
+        st.rerun()
+
+    hansard_comments = st.session_state.get('hansard_comments_added', [])
+
+    for i, comment in enumerate(hansard_comments):
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.write(f"**{comment['type']}** ({comment['date']})")
+            st.write(comment['text'][:100] + "...")
+        with col2:
+            if st.button("🗑️", key=f"remove_hansard_inline_{i}"):
+                st.session_state.hansard_comments_added.pop(i)
+                st.rerun()
+
+def create_progress_indicator_navigation():
+    """Interactive progress indicator with step navigation"""
+
+    current_step = st.session_state.get('wizard_step', 1)
+
+    # Determine which steps are accessible
+    max_accessible_step = 1
+
+    if st.session_state.get('selected_mp'):
+        max_accessible_step = 2
+    if st.session_state.get('selected_mp') and st.session_state.get('length_setting'):
+        max_accessible_step = 3
+    if st.session_state.get('biography_generated'):
+        max_accessible_step = 4
+
+    st.markdown(f"""
+    <div class="progress-section">
+        <div class="progress-title">Biography Creation Wizard</div>
+        <div class="progress-steps">
+            <div class="progress-step">
+                <div class="step-circle {'completed' if current_step > 1 else 'active'}"
+                     onclick="setStep(1)" style="cursor: pointer;">1</div>
+                <div>Select MP</div>
+            </div>
+            <div class="progress-step">
+                <div class="step-circle {'completed' if current_step > 2 else ('active' if current_step == 2 else ('disabled' if max_accessible_step < 2 else ''))}"
+                     onclick="setStep(2)" style="cursor: {'pointer' if max_accessible_step >= 2 else 'not-allowed'};">2</div>
+                <div>Configure</div>
+            </div>
+            <div class="progress-step">
+                <div class="step-circle {'completed' if current_step > 3 else ('active' if current_step == 3 else ('disabled' if max_accessible_step < 3 else ''))}"
+                     onclick="setStep(3)" style="cursor: {'pointer' if max_accessible_step >= 3 else 'not-allowed'};">3</div>
+                <div>Add Information</div>
+            </div>
+            <div class="progress-step">
+                <div class="step-circle {'completed' if current_step >= 4 else ('active' if current_step == 4 else ('disabled' if max_accessible_step < 4 else ''))}"
+                     onclick="setStep(4)" style="cursor: {'pointer' if max_accessible_step >= 4 else 'not-allowed'};">4</div>
+                <div>Generate & Download</div>
+            </div>
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {current_step * 25}%;"></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def wizard_step_1_select_mp():
+    """Step 1: Select MP - fixed multiple name handling"""
+    st.header("Step 1: Select Member of Parliament")
+
+    # Check if we already have a selected MP
+    if st.session_state.get('selected_mp'):
+        selected_mp = st.session_state.selected_mp
+        st.success(f"✅ Selected: **{selected_mp['name']}** ({selected_mp['party']}) - {selected_mp['constituency']}")
+
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col1:
+            if st.button("🔄 Change MP", key="change_mp_step1", use_container_width=True):
+                # Clear selection and show search again
+                st.session_state.selected_mp = None
+                st.session_state.mp_search_query = ''
+                st.session_state.show_suggestions = False
+                st.session_state.validation_result = None
+                st.session_state.mp_search_results = None
+                st.rerun()
+
+        with col3:
+            if st.button("Next →", type="primary", key="step1_next", use_container_width=True):
+                st.session_state.wizard_step = 2
+                st.rerun()
+
+        return
+
+    # Check if we have search results to display
+    if st.session_state.get('mp_search_results'):
+        suggestions = st.session_state.mp_search_results
+        search_query = st.session_state.get('mp_search_query', '')
+
+        if len(suggestions) == 1:
+            st.info(f"Found MP matching '{search_query}':")
+        else:
+            st.warning(f"Found {len(suggestions)} MPs matching '{search_query}'. Please select one:")
+
+        # Display suggestions in a clean grid
+        for i in range(0, len(suggestions), 2):
+            cols = st.columns(2)
+
+            for j, col in enumerate(cols):
+                if i + j < len(suggestions):
+                    suggestion = suggestions[i + j]
+
+                    with col:
+                        # Create a card-like button for each suggestion
+                        if st.button(
+                            f"**{suggestion['name']}**\n{suggestion['party']} • {suggestion['constituency']}",
+                            key=f"suggestion_{i+j}",
+                            use_container_width=True,
+                            help=f"Select {suggestion['name']}"
+                        ):
+                            st.session_state.selected_mp = suggestion
+                            st.session_state.mp_search_results = None  # Clear results
+                            st.success(f"✅ Selected: {suggestion['name']}")
+                            st.rerun()
+
+        # Option to search again
+        if st.button("🔍 Search Again", key="search_again", use_container_width=True):
+            st.session_state.mp_search_results = None
+            st.session_state.mp_search_query = ''
+            st.rerun()
+
+        return
+
+    # MP search interface with submit button
+    with st.form("mp_search_form"):
+        search_query = st.text_input(
+            "Search for MP name:",
+            value=st.session_state.get('mp_search_query', ''),
+            placeholder="e.g., Keir Starmer, Rishi Sunak, Angela Rayner...",
+            help="Enter the MP's name (titles like 'Sir' are optional)"
+        )
+
+        submit_search = st.form_submit_button("🔍 Search MPs", type="primary", use_container_width=True)
+
+    # Process search when submitted
+    if submit_search and search_query:
+        st.session_state.mp_search_query = search_query
+
+        with st.spinner('Searching MPs...'):
+            validation_result = validate_mp_name(search_query)
+
+        if validation_result['is_valid']:
+            # Direct match found - auto-select only if it's a very high confidence match
+            st.session_state.selected_mp = validation_result['exact_match']
+            st.success(f"✅ Found exact match: {validation_result['exact_match']['name']}")
+            st.rerun()
+
+        elif validation_result['suggestions']:
+            # Multiple matches - store for selection
+            st.session_state.mp_search_results = validation_result['suggestions']
+            st.rerun()
+        else:
+            # No matches found
+            st.error(validation_result['message'])
+            st.session_state.mp_search_results = None
+
+    # Show search tips if no search performed yet
+    if not submit_search and not st.session_state.get('mp_search_results'):
+        with st.expander("💡 Search Tips"):
+            st.write("""
+            - Enter the MP's full name (e.g., "Keir Starmer")
+            - You can search by surname only (e.g., "Starmer")
+            - Handles titles automatically (Sir, Dame, etc.)
+            - Shows suggestions if multiple matches found
+            - Only current MPs are available
+            """)
+
+def create_hansard_search_section_wizard():
+    """Hansard search for wizard - fixed navigation"""
+    st.subheader("🔍 Search Parliamentary Records")
+
+    selected_mp = st.session_state.get('selected_mp')
+
+    # Wizard-specific back button
+    if st.button("← Back to Step 3", key="back_from_hansard_wizard"):
+        st.session_state.show_hansard_search = False
+        st.rerun()
+
+    st.write(f"Search for **{selected_mp['name']}'s** parliamentary contributions on specific topics.")
+
+    # Initialize session state for Hansard search
+    if 'hansard_results' not in st.session_state:
+        st.session_state.hansard_results = []
+    if 'selected_hansard_items' not in st.session_state:
+        st.session_state.selected_hansard_items = []
+    if 'hansard_search_performed' not in st.session_state:
+        st.session_state.hansard_search_performed = False
+    if 'hansard_comments_added' not in st.session_state:
+        st.session_state.hansard_comments_added = []
+
+    # Search form
+    with st.form("hansard_search_form_wizard"):
+        issue_query = st.text_input(
+            "What topic would you like to search for?",
+            placeholder="e.g., climate change, healthcare, education funding, housing policy...",
+        )
+
+        col1, col2 = st.columns(2)
+        with col1:
+            date_range = st.selectbox(
+                "Time period",
+                ["Last 6 months", "Last year", "Last 2 years", "All available"],
+                index=1
+            )
+        with col2:
+            max_results = st.slider("Maximum results", 5, 30, 15)
+
+        search_button = st.form_submit_button("🔍 Search Hansard Records", type="primary", use_container_width=True)
+
+    if search_button and issue_query:
+        with st.spinner("Generating search terms and searching Hansard..."):
+            search_terms = generate_search_terms(issue_query, selected_mp['name'])
+
+            if search_terms:
+                st.success(f"Generated search terms: {', '.join(search_terms)}")
+
+                # Calculate date range
+                start_date = None
+                end_date = datetime.now().strftime('%Y-%m-%d')
+
+                if date_range == "Last 6 months":
+                    start_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
+                elif date_range == "Last year":
+                    start_date = (datetime.now() - timedelta(days=365)).strftime('%Y-%m-%d')
+                elif date_range == "Last 2 years":
+                    start_date = (datetime.now() - timedelta(days=730)).strftime('%Y-%m-%d')
+
+                results = search_hansard_contributions(selected_mp['id'], search_terms, start_date, end_date, max_results)
+                st.session_state.hansard_results = results
+                st.session_state.hansard_search_performed = True
+
+                if results:
+                    st.success(f"Found {len(results)} relevant contributions!")
+                else:
+                    st.warning("No contributions found for this topic. Try different search terms or expand the date range.")
+
+    # Display results (same as before but with wizard navigation)
+    if st.session_state.hansard_search_performed and st.session_state.hansard_results:
+        st.subheader(f"📋 Search Results ({len(st.session_state.hansard_results)} found)")
+
+        # Selection controls
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if st.button("✅ Select All", key="select_all_hansard_wizard"):
+                st.session_state.selected_hansard_items = [item['id'] for item in st.session_state.hansard_results]
+                st.rerun()
+        with col2:
+            if st.button("❌ Clear Selection", key="clear_all_hansard_wizard"):
+                st.session_state.selected_hansard_items = []
+                st.rerun()
+        with col3:
+            selected_count = len(st.session_state.selected_hansard_items)
+            st.write(f"**Selected: {selected_count}**")
+
+        # Display results (keeping existing display logic)
+        for i, result in enumerate(st.session_state.hansard_results):
+            with st.container():
+                is_selected = result['id'] in st.session_state.selected_hansard_items
+
+                selected = st.checkbox(
+                    f"Select this contribution",
+                    value=is_selected,
+                    key=f"hansard_select_wizard_{i}"
+                )
+
+                if selected and result['id'] not in st.session_state.selected_hansard_items:
+                    st.session_state.selected_hansard_items.append(result['id'])
+                elif not selected and result['id'] in st.session_state.selected_hansard_items:
+                    st.session_state.selected_hansard_items.remove(result['id'])
+
+                result_date = format_hansard_date(result['date'])
+                st.markdown(f"**{result_date}** - {result['debate_title']}")
+                st.caption(f"Found by search term: '{result['search_term']}'")
+
+                text_to_show = result['full_text'] if result['full_text'] else result['text']
+                if len(text_to_show) > 400:
+                    text_to_show = text_to_show[:400] + "..."
+                st.write(text_to_show)
+
+                if result.get('url'):
+                    st.markdown(f"🔗 [View in Hansard]({result['url']})")
+
+                st.divider()
+
+        # Add selected items - wizard navigation
+        if st.session_state.selected_hansard_items:
+            if st.button(f"➕ Add {len(st.session_state.selected_hansard_items)} Selected Items",
+                        type="primary", key="add_hansard_wizard", use_container_width=True):
+                new_comments = []
+                for result in st.session_state.hansard_results:
+                    if result['id'] in st.session_state.selected_hansard_items:
+                        hansard_comment = {
+                            "type": "Parliamentary Remarks",
+                            "url": result.get('url', ''),
+                            "date": result['date'][:10] if result['date'] else datetime.now().strftime("%Y-%m-%d"),
+                            "text": f"In {result['debate_title']} on {format_hansard_date(result['date'])}, {selected_mp['name']} said: \"{result['full_text'] if result['full_text'] else result['text']}\""
+                        }
+                        new_comments.append(hansard_comment)
+
+                if 'hansard_comments_added' not in st.session_state:
+                    st.session_state.hansard_comments_added = []
+                st.session_state.hansard_comments_added.extend(new_comments)
+
+                st.success(f"✅ Added {len(new_comments)} parliamentary contributions!")
+
+                # Return to step 3
+                st.session_state.selected_hansard_items = []
+                st.session_state.show_hansard_search = False
+                st.rerun()
+
+def create_manual_comments_section_wizard():
+    """Manual comments for wizard - fixed navigation"""
+    st.subheader("💬 Add Manual Comments")
+
+    # Wizard-specific back button
+    if st.button("← Back to Step 3", key="back_from_manual_wizard"):
+        st.session_state.show_manual_comments = False
+        st.rerun()
+
+    st.write("Add comments or statements from sources other than parliamentary records.")
+
+    # Initialize session state
+    if 'manual_comments_added' not in st.session_state:
+        st.session_state.manual_comments_added = []
+
+    # Show existing comments
+    existing_comments = st.session_state.get('manual_comments_added', [])
+    if existing_comments:
+        st.write(f"**📋 Added Comments ({len(existing_comments)}):**")
+
+        for i, comment in enumerate(existing_comments):
+            with st.container():
+                col1, col2 = st.columns([4, 1])
+
+                with col1:
+                    st.write(f"**{i+1}. {comment['type']}** ({comment['date']})")
+                    if comment.get('url'):
+                        st.markdown(f"🔗 [Source]({comment['url']})")
+
+                    preview = comment['text'][:150] + "..." if len(comment['text']) > 150 else comment['text']
+                    st.write(preview)
+
+                with col2:
+                    if st.button("🗑️", key=f"remove_manual_wizard_{i}", help="Remove this comment"):
+                        st.session_state.manual_comments_added.pop(i)
+                        st.rerun()
+
+                st.divider()
+
+    # Add new comment form
+    st.write("**➕ Add New Comment:**")
+
+    with st.form("manual_comment_form_wizard"):
+        comment_type = st.selectbox(
+            "Source Type",
+            options=[
+                "Social Media Post",
+                "Written Question",
+                "Interview/Speech",
+                "Press Release",
+                "Newsletter/Blog",
+                "Other"
+            ]
+        )
+
+        comment_url = st.text_input("Source URL (Optional)", placeholder="https://...")
+        comment_date = st.date_input("Date of Comment", value=datetime.now().date())
+        comment_text = st.text_area("Comment Text", height=120, placeholder="Enter the comment or statement here...")
+
+        submit_comment = st.form_submit_button("➕ Add Comment", type="primary", use_container_width=True)
+
+        if submit_comment and comment_text:
+            new_comment = {
+                "type": comment_type,
+                "url": comment_url,
+                "date": comment_date.strftime("%Y-%m-%d"),
+                "text": comment_text
+            }
+
+            st.session_state.manual_comments_added.append(new_comment)
+            st.success("✅ Comment added!")
+            st.rerun()
+
+    # Actions
+    if existing_comments:
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🗑️ Clear All", key="clear_all_manual_wizard"):
+                st.session_state.manual_comments_added = []
+                st.success("All manual comments cleared!")
+                st.rerun()
+        with col2:
+            if st.button("✅ Done", key="done_manual_wizard", type="primary"):
+                st.session_state.show_manual_comments = False
+                st.rerun()
+
+
+def wizard_step_2_configure():
+    """Step 2: Configure biography settings - fixed session state"""
+    st.header("Step 2: Configure Biography")
+
+    selected_mp = st.session_state.get('selected_mp')
+    st.info(f"Creating biography for: **{selected_mp['name']}**")
+
+    # Biography length selection
+    st.subheader("Biography Length")
+
+    length_options = {
+        "Brief": "brief",
+        "Standard": "medium",
+        "Comprehensive": "comprehensive"
+    }
+
+    # Visual selection cards
+    cols = st.columns(3)
+    current_length = st.session_state.get('length_setting', 'medium')
+
+    for i, (display_name, value) in enumerate(length_options.items()):
+        with cols[i]:
+            is_selected = current_length == value
+
+            button_style = "primary" if is_selected else "secondary"
+            if st.button(
+                f"**{display_name}**",
+                key=f"length_{value}",
+                type=button_style,
+                use_container_width=True
+            ):
+                st.session_state.length_setting = value
+                st.rerun()
+
+    # Show description of selected length
+    descriptions = {
+        "brief": "📝 **Brief Biography:** Essential information only (2-3 short paragraphs, ~100-150 words)",
+        "medium": "📄 **Standard Biography:** Comprehensive coverage following example format (default length)",
+        "comprehensive": "📚 **Comprehensive Biography:** Extended detail with additional sections (~50-75% longer)"
+    }
+
+    if current_length in descriptions:
+        st.info(descriptions[current_length])
+
+    st.divider()
+
+    # Additional information - FIXED to use session state properly
+    st.subheader("Additional Information (Optional)")
+
+    # Get current value from session state
+    current_additional_info = st.session_state.get('additional_info', '')
+
+    additional_info = st.text_area(
+        "Enter any specific information about the MP you'd like to include:",
+        value=current_additional_info,  # Set the current value
+        height=120,
+        placeholder="Add information about recent work, policy positions, constituency issues, etc.",
+        key="additional_info_input"  # Use different key to avoid conflicts
+    )
+
+    # Save to session state whenever it changes
+    if additional_info != current_additional_info:
+        st.session_state.additional_info = additional_info
+
+    # Navigation buttons
+    col1, col2, col3 = st.columns([2, 1, 2])
+    with col1:
+        if st.button("← Back", key="step2_back", use_container_width=True):
+            st.session_state.wizard_step = 1
+            st.rerun()
+
+    with col3:
+        if st.button("Next →", type="primary", key="step2_next", use_container_width=True):
+            # Make sure additional info is saved before moving on
+            st.session_state.additional_info = additional_info
+            st.session_state.wizard_step = 3
+            st.rerun()
+
+
+def wizard_step_3_add_information():
+    """Step 3: Add additional information - with tabs for better navigation"""
+    st.header("Step 3: Add Additional Information")
+
+    selected_mp = st.session_state.get('selected_mp')
+
+    st.write("Enhance your biography with parliamentary records or comments from other sources (optional).")
+
+    # Show current counts
+    hansard_count = len(st.session_state.get('hansard_comments_added', []))
+    manual_count = len(st.session_state.get('manual_comments_added', []))
+
+    if hansard_count > 0 or manual_count > 0:
+        status_parts = []
+        if hansard_count > 0:
+            status_parts.append(f"{hansard_count} Hansard records")
+        if manual_count > 0:
+            status_parts.append(f"{manual_count} manual comments")
+
+        st.success(f"✅ Added: {', '.join(status_parts)}")
+
+    # Tabbed interface for better navigation
+    tab1, tab2 = st.tabs(["🏛️ Parliamentary Records", "💬 Other Sources"])
+
+    with tab1:
+        st.write("Search Hansard for the MP's statements on specific topics.")
+
+        if hansard_count > 0:
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("🔍 Search More Records", key="search_more_hansard", use_container_width=True):
+                    st.session_state.hansard_tab_mode = "search"
+                    st.rerun()
+            with col2:
+                if st.button("📋 Manage Added Records", key="manage_hansard_tab", use_container_width=True):
+                    st.session_state.hansard_tab_mode = "manage"
+                    st.rerun()
+        else:
+            if st.button("🔍 Search Hansard Records", key="start_hansard_tab", use_container_width=True):
+                st.session_state.hansard_tab_mode = "search"
+                st.rerun()
+
+        # Show Hansard interface if activated
+        if st.session_state.get('hansard_tab_mode') == "search":
+            st.divider()
+            create_hansard_search_inline()
+        elif st.session_state.get('hansard_tab_mode') == "manage":
+            st.divider()
+            create_hansard_management_inline()
+
+    with tab2:
+        st.write("Add comments from social media, interviews, press releases, etc.")
+
+        if manual_count > 0:
+            st.write(f"**📋 {manual_count} Comments Added**")
+
+            # Show existing comments
+            for i, comment in enumerate(st.session_state.get('manual_comments_added', [])):
+                with st.container():
+                    col1, col2 = st.columns([4, 1])
+
+                    with col1:
+                        st.write(f"**{comment['type']}** ({comment['date']})")
+                        preview = comment['text'][:100] + "..." if len(comment['text']) > 100 else comment['text']
+                        st.write(preview)
+
+                    with col2:
+                        if st.button("🗑️", key=f"remove_manual_tab_{i}", help="Remove"):
+                            st.session_state.manual_comments_added.pop(i)
+                            st.rerun()
+
+                    st.divider()
+
+        # Add new comment form
+        st.write("**➕ Add New Comment:**")
+
+        with st.form("manual_comment_tab_form"):
+            comment_type = st.selectbox(
+                "Source Type",
+                options=["Social Media Post", "Written Question", "Interview/Speech", "Press Release", "Newsletter/Blog", "Other"]
+            )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                comment_url = st.text_input("Source URL (Optional)", placeholder="https://...")
+            with col2:
+                comment_date = st.date_input("Date", value=datetime.now().date())
+
+            comment_text = st.text_area("Comment Text", height=100, placeholder="Enter the comment or statement here...")
+
+            if st.form_submit_button("➕ Add Comment", type="primary", use_container_width=True):
+                if comment_text:
+                    new_comment = {
+                        "type": comment_type,
+                        "url": comment_url,
+                        "date": comment_date.strftime("%Y-%m-%d"),
+                        "text": comment_text
+                    }
+
+                    if 'manual_comments_added' not in st.session_state:
+                        st.session_state.manual_comments_added = []
+                    st.session_state.manual_comments_added.append(new_comment)
+                    st.rerun()
+
+    st.divider()
+
+    # Navigation buttons
+    col1, col2, col3 = st.columns([2, 1, 2])
+    with col1:
+        if st.button("← Back", key="step3_back", use_container_width=True):
+            # Clear any tab modes when leaving step
+            st.session_state.hansard_tab_mode = None
+            st.session_state.wizard_step = 2
+            st.rerun()
+
+    with col3:
+        if st.button("Generate Biography →", type="primary", key="step3_next", use_container_width=True):
+            st.session_state.hansard_tab_mode = None
+            st.session_state.wizard_step = 4
+            st.rerun()
+
+
+def wizard_step_4_generate():
+    """Step 4: Generate and download - fixed additional info detection"""
+    st.header("Step 4: Generate & Download Biography")
+
+    selected_mp = st.session_state.get('selected_mp')
+    length_setting = st.session_state.get('length_setting', 'medium')
+
+    st.subheader("📋 Biography Summary")
+
+    # Check for additional info properly
+    additional_info = st.session_state.get('additional_info', '').strip()
+
+    data_sources = []
+    if additional_info:  # Fixed check
+        data_sources.append("Your additional information")
+
+    hansard_count = len(st.session_state.get('hansard_comments_added', []))
+    if hansard_count > 0:
+        data_sources.append(f"{hansard_count} Hansard parliamentary records")
+
+    manual_count = len(st.session_state.get('manual_comments_added', []))
+    if manual_count > 0:
+        data_sources.append(f"{manual_count} manual comments")
+
+    data_sources.extend(["Parliament API data", "Wikipedia information"])
+
+    # Compact display
+    st.write(f"**{length_setting.title()} biography for {selected_mp['name']} including:**")
+    for source in data_sources:
+        st.write(f"• {source}")
+
+    # Generate button
+    if not st.session_state.get('biography_generated'):
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("🚀 Generate Biography", type="primary", key="final_generate", use_container_width=True):
+                user_input = st.session_state.get('additional_info', '')
+                all_comments = st.session_state.get('hansard_comments_added', []).copy()
+                all_comments.extend(st.session_state.get('manual_comments_added', []))
+
+                generate_biography_flow(selected_mp, user_input, all_comments)
+
+    # Navigation
+    st.divider()
+    col1, col2, col3 = st.columns([2, 1, 2])
+    with col1:
+        if st.button("← Back", key="step4_back", use_container_width=True):
+            st.session_state.wizard_step = 3
+            st.rerun()
+
+    if st.session_state.get('biography_generated'):
+        with col3:
+            if st.button("🔄 Create Another", key="step4_restart", use_container_width=True):
+                keys_to_clear = [
+                    'wizard_step', 'selected_mp', 'mp_search_query', 'show_suggestions',
+                    'validation_result', 'hansard_comments_added', 'manual_comments_added',
+                    'additional_info', 'biography_generated', 'length_setting'
+                ]
+                for key in keys_to_clear:
+                    if key in st.session_state:
+                        del st.session_state[key]
+
+                st.session_state.wizard_step = 1
+                st.rerun()
 
 def search_hansard_contributions(mp_id, search_terms, start_date=None, end_date=None, max_results=20):
     """Search Hansard API for MP contributions using generated search terms"""
@@ -1333,479 +2989,54 @@ def relevant_comments_section(mp_name=None, mp_id=None):
     return all_comments if st.session_state.show_comments else st.session_state.hansard_comments_added
 
 
-def cancel_generation():
-    """Set the cancel flag to true"""
-    st.session_state.cancel_generation = True
-    st.warning("Cancellation requested. The process will stop at the next checkpoint.")
 
 def main_app():
-    """Main application logic with enhanced MP validation and Hansard search"""
-    st.title("MP Biography Generator")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.header("Input")
-
-        # Enhanced MP selection with validation
-        selected_mp = mp_name_input_with_validation()
-
-        # Only show the rest of the form if an MP is selected
-        if selected_mp:
-            st.divider()
-            mp_display_col, clear_button_col = st.columns([4, 1])
-
-            # Display selected MP prominently
-            with mp_display_col:
-                st.success(f"✅ **Selected MP:** {selected_mp['name']} ({selected_mp['party']}) - {selected_mp['constituency']}")
-
-            with clear_button_col:
-                if st.button("🔄 Change MP", help="Clear selection to choose a different MP", key="change_mp_main"):
-                    st.session_state.selected_mp = None
-                    st.session_state.mp_search_query = ''
-                    st.session_state.show_suggestions = False
-                    st.session_state.validation_result = None
-                    st.rerun()
-
-            # Biography length slider
-            st.subheader("Biography Length")
-            length_options = {
-                "Brief": "brief",
-                "Standard": "medium",
-                "Comprehensive": "comprehensive"
-            }
-
-            length_display = st.select_slider(
-                "Choose biography length:",
-                options=list(length_options.keys()),
-                value="Standard",
-                help="Brief: 2-3 short paragraphs covering key points only. Standard: Full biography matching example length. Comprehensive: Extended detail with additional sections."
-            )
-
-            length_setting = length_options[length_display]
-
-            # Show length description
-            length_descriptions = {
-                "brief": "📝 **Brief**: Essential information only (2-3 short paragraphs, ~100-150 words)",
-                "medium": "📄 **Standard**: Comprehensive biography following example format (standard length)",
-                "comprehensive": "📚 **Comprehensive**: Extended detail with additional sections (~50-75% longer than standard)"
-            }
-
-            st.info(length_descriptions[length_setting])
-
-            # Text area for additional information
-            user_input_text = st.text_area(
-                "Enter additional information about the MP (Optional):",
-                height=150,
-                help="Add any additional information about the MP you'd like to include in the biography."
-            )
-
-            # Relevant comments section with Hansard search - pass MP info
-            comments = relevant_comments_section(selected_mp['name'], selected_mp['id'])
-
-            # Generate button
-            generate_button = st.button("Generate Biography", type="primary")
-
-            if generate_button:
-                            # Set generation flag to prevent re-validation
-                            st.session_state.generation_in_progress = True
-
-                            # Reset the cancel flag at the start of generation
-                            st.session_state.cancel_generation = False
-
-                            progress_container = st.container()
-
-                            with progress_container:
-                                st.button("Cancel Generation", on_click=cancel_generation, type="secondary")
-
-                                progress_bar = st.progress(0)
-                                status_text = st.empty()
-
-                                try:
-                                    # Use the selected MP data - we already have the ID!
-                                    mp_name = selected_mp['name']
-                                    mp_id = selected_mp['id']
-
-                                    status_text.text('Reading example biographies...')
-                                    progress_bar.progress(10)
-
-                                    if st.session_state.cancel_generation:
-                                        st.warning("Generation cancelled.")
-                                        st.session_state.generation_in_progress = False
-                                        return
-
-                                    examples = read_example_bios()
-                                    input_content = user_input_text if user_input_text else ""
-                                    has_user_input = bool(user_input_text.strip())
-
-                                    status_text.text('Fetching verified positions...')
-                                    progress_bar.progress(25)
-
-                                    if st.session_state.cancel_generation:
-                                        st.warning("Generation cancelled.")
-                                        st.session_state.generation_in_progress = False
-                                        return
-
-                                    # Get verified positions using the known MP ID - much more efficient!
-                                    verified_positions = None
-                                    try:
-                                        # Test if we can get basic MP data
-                                        test_url = f"https://members-api.parliament.uk/api/Members/{mp_id}"
-                                        test_response = requests.get(test_url, timeout=5)
-                                        if test_response.status_code == 200:
-                                            st.write(f"✅ MP ID {mp_id} is valid")
-                                            verified_positions = get_verified_positions(mp_id)
-                                        else:
-                                            st.error(f"Invalid MP ID: {mp_id}")
-                                    except Exception as e:
-                                        st.error(f"Error: {str(e)}")
-                                        verified_positions = None
-
-                                    if verified_positions:
-                                        with st.expander("API Diagnostics"):
-                                            st.write("MP ID:", mp_id)
-                                            st.write("MP Name:", mp_name)
-                                            st.write("API Response Status:", verified_positions.get('api_response') is not None)
-                                            if verified_positions.get('api_response'):
-                                                st.json(verified_positions['api_response'])
-                                            else:
-                                                st.error("No API response received")
-                                        display_verified_positions(verified_positions)
-
-                                    if st.session_state.cancel_generation:
-                                        st.warning("Generation cancelled.")
-                                        st.session_state.generation_in_progress = False
-                                        return
-
-                                    status_text.text('Fetching additional MP data...')
-                                    progress_bar.progress(35)
-
-                                    # Get additional MP data using the ID
-                                    mp_data = get_mp_data(mp_id)
-                                    has_api_data = mp_data is not None and any(data for data in mp_data.values() if data)
-
-                                    status_text.text('Fetching Wikipedia data...')
-                                    progress_bar.progress(45)
-
-                                    if st.session_state.cancel_generation:
-                                        st.warning("Generation cancelled.")
-                                        st.session_state.generation_in_progress = False
-                                        return
-
-                                    # NEW CODE
-                                    wiki_data = get_wiki_data_verified(selected_mp['name'], selected_mp['constituency'])
-                                    has_wiki_data = wiki_data is not None
-                                    wiki_url = get_wiki_url_verified(selected_mp['name'], selected_mp['constituency']) if has_wiki_data else None
-
-                                    # After getting wiki_data, add this:
-                                    if has_wiki_data:
-                                        st.sidebar.success(f"✅ Wikipedia: Verified for {selected_mp['constituency']}")
-                                    else:
-                                        st.sidebar.warning("⚠️ Wikipedia: No verified page found")
-
-                                    with st.expander("Debug Information"):
-                                        st.subheader("Selected MP Info")
-                                        st.json(selected_mp)
-
-                                        st.subheader("Biography Settings")
-                                        st.write(f"Length: {length_display} ({length_setting})")
-
-                                        st.subheader("Wikipedia Data")
-                                        if wiki_data:
-                                            st.text("Wikipedia content found")
-                                            st.text(f"Length: {len(wiki_data)} characters")
-                                            st.text(wiki_data[:500] + "...")
-                                        else:
-                                            st.text("No Wikipedia content found")
-
-                                        if comments:
-                                            st.subheader("User Comments")
-                                            st.json(comments)
-
-                                    # Combine all available information
-                                    if not input_content and has_api_data:
-                                        from mp_functions import format_mp_data
-                                        input_content = format_mp_data(mp_data)
-
-                                    if not input_content and has_wiki_data:
-                                        input_content = wiki_data
-
-                                    if not input_content:
-                                        st.error("No information found for this MP. Please check the name and try again.")
-                                        st.session_state.generation_in_progress = False
-                                        return
-
-                                    if st.session_state.cancel_generation:
-                                        st.warning("Generation cancelled.")
-                                        st.session_state.generation_in_progress = False
-                                        return
-
-                                    # Generate biography with length setting - THIS IS THE KEY CHANGE
-                                    status_text.text(f'Generating {length_display.lower()} biography with Claude...')
-                                    progress_bar.progress(80)
-
-                                    if st.session_state.cancel_generation:
-                                        st.warning("Generation cancelled.")
-                                        st.session_state.generation_in_progress = False
-                                        return
-
-                                    biography = generate_biography(mp_name, input_content, examples, verified_positions, comments, length_setting)
-
-                                    # Save biography
-                                    status_text.text('Saving biography...')
-
-                                    if st.session_state.cancel_generation:
-                                        st.warning("Generation cancelled.")
-                                        st.session_state.generation_in_progress = False
-                                        return
-
-                                    saved_path = save_biography(mp_name, biography, comments,
-                                                            has_pdf=False,
-                                                            has_api_data=has_api_data,
-                                                            has_wiki_data=has_wiki_data,
-                                                            wiki_url=wiki_url)
-
-                                    progress_bar.progress(100)
-                                    status_text.text('Complete!')
-
-                                    # Prepare file for download
-                                    with open(saved_path, 'rb') as file:
-                                        bio_bytes = file.read()
-
-                                    st.success(f'{length_display} biography generated successfully!')
-                                    st.download_button(
-                                        label=f"Download {length_display} Biography",
-                                        data=bio_bytes,
-                                        file_name=f"{mp_name}_{length_setting}_biography.docx",
-                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                                    )
-
-                                    # Reset generation flag
-                                    st.session_state.generation_in_progress = False
-
-                                except Exception as e:
-                                    st.error(f"An error occurred: {str(e)}")
-                                    st.session_state.generation_in_progress = False
-
-        else:
-            # Show helpful information when no MP is selected
-            st.info("👆 Please search for and select an MP above to continue")
-
-            with st.expander("💡 Tips for searching"):
-                st.write("""
-                - Try entering the MP's full name (e.g., "Keir Starmer")
-                - You can search by surname only (e.g., "Starmer")
-                - The search will show current MPs only
-                - If you're unsure of the exact spelling, start typing and suggestions will appear
-                - Use the constituency name if you're not sure of the MP's name
-                """)
-
-            with st.expander("🔍 How the search works"):
-                st.write("""
-                - **Real-time validation**: As you type, we check against Parliament's official database
-                - **Fuzzy matching**: Even with slight misspellings, we'll find close matches
-                - **Current MPs only**: Only sitting MPs will appear in results
-                - **Detailed info**: See party affiliation and constituency for each suggestion
-                - **No invalid entries**: You can't generate a biography for someone who isn't an MP
-                """)
-
-    with col2:
-            st.header("Information")
-            st.write("""
-            This tool generates MP biographies using:
-            - Your optional input text about the MP
-            - Parliament's API data (verified positions shown in sidebar)
-            - Wikipedia information
-            - User-submitted relevant comments (optional)
-            - **NEW: Hansard parliamentary records search**
-            - Perplexity AI web search (optional)
-
-            **New: Enhanced MP Validation & Hansard Search**
-            - Only verified MPs can be selected
-            - Real-time search with suggestions
-            - AI-powered search of parliamentary records
-            - Smart topic-based Hansard search
-            - Choose biography length: Brief, Standard, or Comprehensive
-            """)
-
-            # Use columns for feature highlights
-            info_col1, info_col2 = st.columns(2)
-
-            with info_col1:
-                st.markdown("""
-                **🔍 Smart Search**
-                - Real-time MP lookup
-                - Handles titles (Sir, Dame, etc.)
-                - Fuzzy name matching
-                - Shows party & constituency
-                """)
-
-            with info_col2:
-                st.markdown("""
-                **✅ Validation**
-                - Current MPs only
-                - Prevents invalid entries
-                - Multiple match handling
-                - Instant feedback
-                """)
-
-            # NEW: Hansard search information
-            with st.expander("🏛️ NEW: Hansard Search Features"):
-                st.markdown("""
-                **🤖 AI-Powered Search:**
-                - Enter any topic (e.g., "climate change", "healthcare")
-                - Claude generates optimized search terms
-                - Searches parliamentary contribution records
-                - Smart date filtering options
-
-                **📋 Result Management:**
-                - Browse through MP's statements on your topic
-                - See debate titles, dates, and full text
-                - Select specific contributions to include
-                - Automatically formatted for biography
-
-                **🎯 Smart Matching:**
-                - Finds relevant statements using multiple search strategies
-                - Shows which search term found each result
-                - Removes duplicates automatically
-                - Orders by relevance and date
-
-                **⏰ Flexible Time Ranges:**
-                - Last 6 months, 1 year, 2 years, or all available
-                - Custom date range selection
-                - Configurable result limits
-                """)
-
-            # Biography length options
-            with st.expander("📏 Biography Length Options"):
-                st.markdown("""
-                **📝 Brief Biography:**
-                - 2-3 short paragraphs
-                - Essential information only
-                - Current role and key highlights
-                - ~100-150 words
-
-                **📄 Standard Biography:**
-                - Comprehensive coverage
-                - Follows example format
-                - Full career and background
-                - Standard length (default)
-
-                **📚 Comprehensive Biography:**
-                - Extended detail
-                - Additional sections
-                - More context and background
-                - ~50-75% longer than standard
-                """)
-
-            # Example searches
-            with st.expander("📝 Example Searches"):
-                st.markdown("""
-                **MP Search Examples:**
-                - **"Keir Starmer"** → Direct match
-                - **"Starmer"** → Shows suggestion
-                - **"Alec Shelbrooke"** → Finds "Sir Alec Shelbrooke"
-                - **"Angela Rayner"** → Direct match
-                - **"Boris"** → Shows multiple suggestions
-
-                **Hansard Topic Examples:**
-                - **"climate change"** → Finds environmental policy statements
-                - **"NHS funding"** → Locates healthcare discussions
-                - **"education"** → Discovers school and university debates
-                - **"housing crisis"** → Finds property and planning statements
-                """)
-
-            # Performance info
-            with st.expander("⚡ Performance Features"):
-                st.markdown("""
-                **Speed Optimizations:**
-                - Response caching (faster repeated searches)
-                - Reduced API timeouts (3s max)
-                - Debounced search (waits for typing to stop)
-                - Efficient name normalization
-
-                **Smart Matching:**
-                - Ignores titles and honorifics
-                - Handles partial name matches
-                - Orders results by relevance
-
-                **Hansard Integration:**
-                - Parallel search term processing
-                - Duplicate removal algorithms
-                - Smart result ranking
-                - Efficient API usage
-                """)
+    """Wizard-style step-by-step flow"""
+    force_css_reload()
+    create_custom_header()
+    create_progress_indicator_navigation()
+
+    # Get current step from session state
+    current_step = st.session_state.get('wizard_step', 1)
+
+    # Route to appropriate step
+    if current_step == 1:
+        wizard_step_1_select_mp()
+    elif current_step == 2:
+        wizard_step_2_configure()
+    elif current_step == 3:
+        wizard_step_3_add_information()
+    elif current_step == 4:
+        wizard_step_4_generate()
+
+    # Enhanced sidebar (existing function)
+    create_enhanced_sidebar()
 
 def main():
-    """Main entry point with custom authentication"""
+    """Main entry point with wizard initialization"""
 
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
+    if 'wizard_step' not in st.session_state:  # ADD THIS
+        st.session_state.wizard_step = 1
+    if 'generation_cancelled' not in st.session_state:
+        st.session_state.generation_cancelled = False
+    if 'biography_generated' not in st.session_state:
+        st.session_state.biography_generated = False
+    if 'mp_search_results' not in st.session_state:  # ADD THIS
+        st.session_state.mp_search_results = None
 
-    if 'show_debug' not in st.session_state:
-        st.session_state.show_debug = False
 
     if not st.session_state.authenticated:
-        styled_login_page()  # ← Just this one line!
+        styled_login_page()
         return
 
-    # User is authenticated - show main app
+    # User is authenticated - setup API keys
     setup_api_keys()
 
-    # Sidebar with user info and logout
-    with st.sidebar:
-        st.header("Account")
-        st.write(f"Welcome, {st.session_state.get('name', 'User')}")
-        st.write(f"Email: {st.session_state.get('email', 'N/A')}")
-
-        if st.button('Logout'):
-            st.session_state.authenticated = False
-            for key in ['name', 'username', 'email']:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.rerun()
-
-        # API Status
-        st.header("API Status")
-        st.success("✅ Anthropic API: Configured")
-
-        # Check Hansard API
-        try:
-            hansard_test = requests.get("https://hansard-api.parliament.uk/overview/firstyear.json", timeout=3)
-            if hansard_test.status_code == 200:
-                st.success("✅ Hansard API: Available")
-            else:
-                st.warning("⚠️ Hansard API: Limited access")
-        except:
-            st.error("❌ Hansard API: Unavailable")
-
-        # Add cache controls for debugging
-        st.header("Cache Controls")
-        if st.button("🗑️ Clear MP Search Cache", help="Clear cached search results for better performance"):
-            cached_search_mps.cache_clear()
-            st.success("Cache cleared!")
-
-        if st.button("🗑️ Clear Hansard Results", help="Clear current Hansard search results"):
-            if 'hansard_results' in st.session_state:
-                del st.session_state.hansard_results
-            if 'selected_hansard_items' in st.session_state:
-                del st.session_state.selected_hansard_items
-            if 'hansard_search_performed' in st.session_state:
-                del st.session_state.hansard_search_performed
-            st.success("Hansard cache cleared!")
-
-        st.header("Debug Tools")
-        if st.button("🧪 Debug Hansard API"):
-            st.session_state.show_debug = True
-
-        if st.session_state.get('show_debug', False):
-            if st.button("❌ Close Debug"):
-                st.session_state.show_debug = False
-                st.rerun()
-            test_hansard_api_simple()
-
-    # Run main app
+    # Run main app (which handles ALL content including sidebar)
     main_app()
+
 
 if __name__ == "__main__":
     main()
