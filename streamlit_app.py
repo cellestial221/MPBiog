@@ -1396,10 +1396,7 @@ def create_custom_header():
             <div class="app-title">MP Biography Generator</div>
         </div>
         <div class="header-right">
-            Welcome, {user_name} |
-            <a href="javascript:void(0)" onclick="if(confirm('Are you sure you want to logout?')) {{
-                window.location.reload();
-            }}">Logout</a>
+            Welcome, {user_name}
         </div>
     </div>
     """, unsafe_allow_html=True)
